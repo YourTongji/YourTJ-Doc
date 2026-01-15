@@ -3,14 +3,14 @@
  * 确保在生产构建中覆盖 VitePress 默认主题的变量
  */
 html:root {
-  /* 辉光背景渐变色 */
-  --vp-home-hero-image-background-image: linear-gradient(-45deg, #06b6d4 50%, #3b82f6 50%);
+  /* 辉光背景渐变色 - 蓝色和紫色交织 */
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, #3b82f6 50%, #8b5cf6 50%);
   /* 辉光模糊程度 */
   --vp-home-hero-image-filter: blur(44px);
 
-  /* 标题文字渐变 */
+  /* 标题文字渐变 - 蓝色到紫色 */
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #06b6d4 30%, #3b82f6);
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #3b82f6 30%, #8b5cf6);
 }
 
 /* 针对大屏幕的调整，同样增加权重 */
