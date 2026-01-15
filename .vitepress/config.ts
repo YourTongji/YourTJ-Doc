@@ -149,7 +149,7 @@ export default withMermaid(
       },
 
       editLink: {
-        pattern: 'https://github.com/YourTongji/YourTJ-Doc/edit/master/:path',
+        pattern: 'https://github.com/YourTongji/YourTJ-Doc/edit/main/:path',
         text: '在 GitHub 上编辑此页面'
       }
     }
