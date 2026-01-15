@@ -41,7 +41,7 @@ app.route('/api/admin', admin)
 管理后台通过 URL 参数传递密钥：
 
 ```
-https://yourtj.com/admin?secret=your-admin-secret
+https://xk.yourtj.de/admin?access=your-admin-secret
 ```
 
 ### Admin 组件
