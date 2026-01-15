@@ -6,6 +6,7 @@ export default withMermaid(
     title: "YourTJ 选课社区",
     description: "同济大学课程评价与选课指南平台文档",
     lang: 'zh-CN',
+    base: '/YourTJ-Doc/',
 
     mermaid: {
       // Mermaid 配置选项
