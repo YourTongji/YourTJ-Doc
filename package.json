@@ -1,0 +1,24 @@
+{
+  "name": "yourtj-docs",
+  "version": "1.0.0",
+  "description": "YourTJ 选课社区文档站点",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "mermaid": "^11.12.2",
+    "vitepress": "^1.5.0",
+    "vitepress-plugin-mermaid": "^2.0.17"
+  },
+  "keywords": [
+    "tongji",
+    "course",
+    "review",
+    "documentation"
+  ],
+  "author": "YourTJ Team",
+  "license": "MIT"
+}

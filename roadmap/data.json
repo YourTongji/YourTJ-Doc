@@ -1,0 +1,79 @@
+{
+  "columns": [
+    {
+      "id": "done",
+      "title": "Done",
+      "icon": "✓",
+      "items": [
+        {
+          "title": "Waline 评论系统",
+          "description": "基于 Waline 的留言板，部署在 Vercel，使用 Neon PostgreSQL 数据库"
+        },
+        {
+          "title": "YourTJCaptcha 人机验证",
+          "description": "自托管的人机验证服务，部署在 Vercel"
+        }
+      ]
+    },
+    {
+      "id": "progress",
+      "title": "In Progress",
+      "icon": "⟳",
+      "items": [
+        {
+          "title": "数据表标准化",
+          "description": "与同济一系统课程爬取的数据表统一数据表标准"
+        },
+        {
+          "title": "API 对接",
+          "description": "与同济排课模拟器对接 API，统一数据表标准"
+        },
+        {
+          "title": "历史数据清洗",
+          "description": "清洗老乌龙茶文档数据"
+        },
+        {
+          "title": "乌龙茶数据互通",
+          "description": "与乌龙茶网站课程评论统一数据表标准，实现数据互通，进一步实时互通数据"
+        },
+        {
+          "title": "学期课程爬取自动化",
+          "description": "学期课程爬取自动化以及数据清洗"
+        },
+        {
+          "title": "管理后台优化",
+          "description": "管理后台图形化界面优化"
+        },
+        {
+          "title": "数据库安全加固",
+          "description": "数据库增加验证逻辑和安全加固"
+        }
+      ]
+    },
+    {
+      "id": "next",
+      "title": "Next Up",
+      "icon": "→",
+      "items": [
+        {
+          "title": "加密积分钱包",
+          "description": "用于点评激励的加密积分钱包，使用 PBKDF2+BIP39 实现用学号+自定义 PIN 生成不可逆向助记词"
+        },
+        {
+          "title": "积分获取标准",
+          "description": "制定积分获取标准：明确点评、被点赞、首次点评、点评冷门课程的积分逻辑"
+        },
+        {
+          "title": "积分悬赏广场",
+          "description": "建立积分悬赏广场，可以使用积分进行任务悬赏"
+        }
+      ]
+    },
+    {
+      "id": "backlog",
+      "title": "Backlog",
+      "icon": "⋯",
+      "items": []
+    }
+  ]
+}
