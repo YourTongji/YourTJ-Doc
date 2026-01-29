@@ -55,22 +55,18 @@ wrangler secret put ADMIN_SECRET
 # API 地址
 VITE_API_URL=https://jcourse-backend.your-subdomain.workers.dev
 
-# Cloudflare Turnstile 站点密钥
-VITE_TURNSTILE_SITE_KEY=your-turnstile-site-key
+# YourTJ Captcha 站点密钥
+VITE_CAPTCHA_SITEKEY=your-captcha-site-key
 
-# YourTJCaptcha 服务地址
-VITE_CAPTCHA_URL=https://your-captcha.vercel.app
+# Waline 评论服务地址
+VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
 ```
 
 | 变量名 | 说明 | 必填 | 示例 |
 |--------|------|------|------|
 | `VITE_API_URL` | 后端 API 地址 | 是 | `https://api.yourtj.com` |
-| `VITE_TURNSTILE_SITE_KEY` | Cloudflare Turnstile 公钥 | 是 | `0x4AAAAAAA...` |
-| `VITE_CAPTCHA_URL` | YourTJCaptcha 服务地址 | 是 | `https://captcha.yourtj.com` |
-
-::: tip Waline 配置说明
-Waline 评论服务的地址目前是硬编码在 `src/pages/Feedback.tsx` 中的，如需修改请直接编辑该文件中的 `serverURL` 配置项。
-:::
+| `VITE_CAPTCHA_SITEKEY` | YourTJ Captcha 站点密钥 | 是 | `your-captcha-site-key` |
+| `VITE_WALINE_SERVER_URL` | Waline 评论服务地址 | 是 | `https://your-waline.vercel.app` |
 
 ### 环境文件优先级
 
@@ -124,11 +120,8 @@ ADMIN_SECRET=dev-admin-secret
 # 后端 API 地址
 VITE_API_URL=
 
-# Cloudflare Turnstile 站点密钥
-VITE_TURNSTILE_SITE_KEY=
-
-# YourTJCaptcha 服务地址
-VITE_CAPTCHA_URL=
+# YourTJ Captcha 站点密钥
+VITE_CAPTCHA_SITEKEY=
 ```
 
 ## CI/CD 环境变量
@@ -144,8 +137,7 @@ VITE_CAPTCHA_URL=
 | Variable 名称 | 说明 |
 |---------------|------|
 | `VITE_API_URL` | 生产环境 API 地址 |
-| `VITE_TURNSTILE_SITE_KEY` | 生产环境 Turnstile 密钥 |
-| `VITE_CAPTCHA_URL` | 生产环境 YourTJCaptcha 地址 |
+| `VITE_CAPTCHA_SITEKEY` | 生产环境 YourTJ Captcha 密钥 |
 
 ## 安全建议
 

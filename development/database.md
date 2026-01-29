@@ -4,9 +4,25 @@
 
 ## 数据库概述
 
+YourTJ 选课社区使用两个独立的数据库系统：
+
+| 数据库 | 类型 | 用途 |
+|--------|------|------|
+| **Cloudflare D1** | SQLite | 存储课程、教师、评价等核心数据 |
+| **Neon PostgreSQL** | PostgreSQL | 存储 Waline 评论数据（独立部署） |
+
+### 主数据库 (D1)
+
 - **数据库类型**: Cloudflare D1 (SQLite 兼容)
 - **字符编码**: UTF-8
 - **时区**: UTC
+
+### 评论数据库 (Neon)
+
+- **数据库类型**: PostgreSQL (Neon Serverless)
+- **字符编码**: UTF-8
+- **部署方式**: 通过 Waline 服务托管
+- **访问方式**: 通过 `VITE_WALINE_SERVER_URL` 环境变量配置
 
 ## ER 图
 
@@ -282,7 +298,100 @@ wrangler d1 execute jcourse-db --file=schema.sql
 wrangler d1 execute jcourse-db --file=import_data.sql
 ```
 
+---
+
+## Waline 评论数据库
+
+Waline 使用独立的 Neon PostgreSQL 数据库，表结构由 Waline 自动管理。
+
+### 主要数据表
+
+| 表名 | 说明 |
+|------|------|
+| `wl_Comment` | 存储评论内容 |
+| `wl_User` | 存储用户信息 |
+| `wl_Count` | 存储页面评论统计 |
+
+### wl_Comment 表
+
+存储用户发表的评论：
+
+```sql
+-- Waline 自动创建的表结构（简化版）
+CREATE TABLE wl_Comment (
+  id BIGSERIAL PRIMARY KEY,
+  objectId TEXT NOT NULL,           -- 评论路径（课程ID）
+  nick TEXT NOT NULL,               -- 用户昵称
+  mail TEXT,                        -- 邮箱
+  link TEXT,                        -- 网址
+  comment TEXT NOT NULL,            -- 评论内容
+  ip TEXT,                          -- IP地址
+  userAgent TEXT,                   -- 用户代理
+  createdAt TIMESTAMP DEFAULT NOW(), -- 创建时间
+  updatedAt TIMESTAMP DEFAULT NOW(), -- 更新时间
+  status INTEGER DEFAULT 0,         -- 状态：0-待审核，1-已通过
+  INSERT INTEGER DEFAULT 0          -- 插入标记
+);
+```
+
+**主要字段说明：**
+
+| 字段 | 说明 |
+|------|------|
+| `objectId` | 评论路径标识，使用课程 ID（如 `/course/123`） |
+| `nick` | 评论者昵称 |
+| `mail` | 评论者邮箱 |
+| `comment` | 评论内容（支持 Markdown） |
+| `status` | 评论状态（0: 待审核, 1: 已通过, 2: 垃圾评论） |
+
+### wl_User 表
+
+存储评论用户信息：
+
+```sql
+CREATE TABLE wl_User (
+  email TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  link TEXT,
+  password TEXT,
+  createdAt TIMESTAMP DEFAULT NOW(),
+  updatedAt TIMESTAMP DEFAULT NOW()
+);
+```
+
+### wl_Count 表
+
+存储页面评论统计：
+
+```sql
+CREATE TABLE wl_Count (
+  objectId TEXT PRIMARY KEY,  -- 页面路径
+  count INTEGER DEFAULT 0     -- 评论数量
+);
+```
+
+### 数据隔离
+
+评论数据完全独立于主数据库，通过以下方式关联：
+
+- **课程 ID**：使用 Waline 的 `path` 或 `objectId` 字段存储课程 ID
+- **查询方式**：前端通过 `path: '/course/${courseId}'` 参数获取特定课程的评论
+- **管理方式**：通过 Waline 管理后台（`/ui`）进行评论审核和管理
+
+### 配置连接
+
+Waline 数据库连接通过环境变量配置（在 Vercel 部署时）：
+
+```bash
+# Waline 服务端环境变量
+DATABASE_URL=postgresql://user:pass@ep-xxx.region.neon.tech/neondb?sslmode=require
+
+# 前端环境变量
+VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
+```
+
 ## 下一步
 
 - [API 接口](/development/api) - 了解数据访问方式
 - [筛选逻辑](/development/filtering) - 了解查询实现
+- [Waline 部署](/development/waline) - 了解评论系统部署

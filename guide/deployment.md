@@ -92,8 +92,8 @@ wrangler deploy
 
 5. 添加环境变量：
    - `VITE_API_URL`
-   - `VITE_TURNSTILE_SITE_KEY`
-   - `VITE_CAPTCHA_URL`
+   - `VITE_CAPTCHA_SITEKEY`
+   - `VITE_WALINE_SERVER_URL`
 
 #### 通过 CLI 部署
 

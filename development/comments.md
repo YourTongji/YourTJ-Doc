@@ -15,6 +15,55 @@
 └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
+### 数据流
+
+```
+用户发表评论
+     │
+     ▼
+┌─────────────────┐
+│  前端 Feedback  │
+│     页面        │
+└────────┬────────┘
+         │
+         │ 1. 用户填写评论信息
+         │    (昵称、邮箱、评论内容)
+         │
+         ▼
+┌─────────────────┐
+│  Waline 客户端  │
+│   (动态加载)    │
+└────────┬────────┘
+         │
+         │ 2. 发送到 Waline 服务器
+         │    POST /api/comment
+         │
+         ▼
+┌─────────────────┐
+│  Waline 服务端  │
+│   (Vercel)      │
+└────────┬────────┘
+         │
+         │ 3. 验证并存储到数据库
+         │
+         ▼
+┌─────────────────┐
+│   Neon 数据库   │
+│  (PostgreSQL)   │
+│  - wl_Comment   │
+│  - wl_User      │
+│  - wl_Count     │
+└─────────────────┘
+```
+
+**数据流说明：**
+
+1. **用户交互**：用户在 Feedback 页面填写评论表单（昵称、邮箱、评论内容）
+2. **客户端处理**：Waline 客户端通过 `VITE_WALINE_SERVER_URL` 环境变量连接到服务器
+3. **服务端验证**：Waline 服务端验证评论内容（反垃圾、字数限制、必填字段）
+4. **数据持久化**：验证通过后存储到 Neon PostgreSQL 数据库
+5. **实时展示**：评论立即显示在页面上，无需刷新
+
 ## 为什么选择 Waline？
 
 | 特性 | 说明 |
@@ -35,28 +84,81 @@ npm install @waline/client
 
 ### 实际集成实现
 
-当前项目中 Waline 集成在 `src/pages/Feedback.tsx` 中，服务地址是硬编码的：
+当前项目中 Waline 集成在 `src/pages/Feedback.tsx` 中，通过环境变量配置服务地址：
 
 ```tsx
 // src/pages/Feedback.tsx (实际实现)
-const handleWalineLoaded = () => {
-  if (window.Waline && walineRef.current) {
-    window.Waline.init({
-      el: walineRef.current,
-      serverURL: 'https://waline.07211024.xyz',  // 硬编码地址
-      emoji: [
-        'https://unpkg.com/@waline/emojis@1.2.0/weibo',
-        'https://unpkg.com/@waline/emojis@1.2.0/bilibili',
-      ],
-      lang: 'zh-CN',
-      dark: 'auto',
-    })
-  }
+const walineServerUrl = import.meta.env.VITE_WALINE_SERVER_URL || ''
+
+const initWaline = async () => {
+  if (!walineServerUrl) return
+
+  // 动态加载 Waline
+  const { default: Waline } = await import('https://unpkg.com/@waline/client@v3/dist/waline.js')
+
+  Waline.init({
+    el: walineRef.current,
+    serverURL: walineServerUrl,  // 从环境变量读取
+    lang: 'zh-CN',
+    locale: {
+      nick: '昵称',
+      nickError: '昵称不能少于3个字符',
+      mail: '邮箱',
+      mailError: '请填写正确的邮件地址',
+      link: '网址',
+      optional: '可选',
+      placeholder: '欢迎留言...',
+      sofa: '来发评论吧~',
+      submit: '提交',
+      reply: '回复',
+      cancelReply: '取消回复',
+      comment: '评论',
+      refresh: '刷新',
+      more: '加载更多...',
+      preview: '预览',
+      emoji: '表情',
+      uploadImage: '上传图片',
+      seconds: '秒前',
+      minutes: '分钟前',
+      hours: '小时前',
+      days: '天前',
+      now: '刚刚',
+      uploading: '正在上传',
+      login: '登录',
+      logout: '退出',
+      admin: '管理员',
+      sticky: '置顶',
+      word: '字',
+      wordHint: '评论字数应在 $0 到 $1 字之间！',
+    },
+    emoji: [
+      'https://unpkg.com/@waline/emojis@1.2.0/weibo',
+      'https://unpkg.com/@waline/emojis@1.2.0/bilibili',
+    ],
+    dark: false,
+    meta: ['nick', 'mail'],
+    requiredMeta: ['nick'],
+    pageSize: 10,
+    wordLimit: [0, 1000],
+  })
 }
+
+// 使用 IntersectionObserver 实现懒加载
+const observer = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting && !isWalineLoaded.current) {
+        isWalineLoaded.current = true
+        initWaline()
+      }
+    })
+  },
+  { threshold: 0.1 }
+)
 ```
 
 ::: tip 配置说明
-Waline 服务地址目前是硬编码在源代码中的，如需修改请直接编辑 `src/pages/Feedback.tsx:52` 中的 `serverURL` 配置项。
+Waline 服务地址通过环境变量 `VITE_WALINE_SERVER_URL` 配置，无需修改源代码。
 :::
 
 ### 配置选项

@@ -101,26 +101,58 @@ https://your-waline-xxx.vercel.app
 
 ## 步骤 4：前端集成
 
-### 4.1 修改硬编码配置
+### 4.1 环境变量配置
 
-Waline 服务地址目前是硬编码在 `src/pages/Feedback.tsx` 中的，需要直接修改源代码：
+在前端项目的 `.env` 文件中添加 Waline 服务地址：
+
+```bash
+VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
+```
+
+### 4.2 集成实现
+
+项目使用动态加载和懒加载方式集成 Waline：
 
 ```tsx
-// src/pages/Feedback.tsx
-window.Waline.init({
-  el: walineRef.current,
-  serverURL: 'https://your-waline.vercel.app',  // 修改此处
-  emoji: [
-    'https://unpkg.com/@waline/emojis@1.2.0/weibo',
-    'https://unpkg.com/@waline/emojis@1.2.0/bilibili',
-  ],
-  lang: 'zh-CN',
-  dark: 'auto',
-})
+// 从环境变量读取服务地址
+const walineServerUrl = import.meta.env.VITE_WALINE_SERVER_URL || ''
+
+// 动态加载 Waline
+const initWaline = async () => {
+  if (!walineServerUrl) return
+
+  const { default: Waline } = await import('https://unpkg.com/@waline/client@v3/dist/waline.js')
+
+  Waline.init({
+    el: walineRef.current,
+    serverURL: walineServerUrl,  // 使用环境变量
+    lang: 'zh-CN',
+    emoji: [
+      'https://unpkg.com/@waline/emojis@1.2.0/weibo',
+      'https://unpkg.com/@waline/emojis@1.2.0/bilibili',
+    ],
+    dark: false,
+  })
+}
+
+// 使用 IntersectionObserver 实现懒加载
+const observer = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting && !isWalineLoaded.current) {
+        isWalineLoaded.current = true
+        initWaline()
+      }
+    })
+  },
+  { threshold: 0.1 }
+)
 ```
 
 ::: tip 配置说明
-当前实现中 Waline 地址是硬编码的，如需修改请直接编辑 `src/pages/Feedback.tsx:52` 中的 `serverURL` 配置项。
+- Waline 服务地址通过环境变量配置，无需修改源代码
+- 使用动态加载减少初始包体积
+- 懒加载确保只在组件可见时加载 Waline
 :::
 
 ## 高级配置

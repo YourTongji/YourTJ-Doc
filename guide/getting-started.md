@@ -103,16 +103,13 @@ npm install
 # API 地址（后端 Workers URL）
 VITE_API_URL=https://jcourse-backend.your-subdomain.workers.dev
 
-# Cloudflare Turnstile 站点密钥
-VITE_TURNSTILE_SITE_KEY=your-turnstile-site-key
+# YourTJ Captcha 站点密钥
+VITE_CAPTCHA_SITEKEY=your-captcha-site-key
 
-# YourTJCaptcha 服务地址
-VITE_CAPTCHA_URL=https://your-captcha.vercel.app
+# Waline 评论服务地址
+VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
 ```
 
-::: tip Waline 配置说明
-Waline 评论服务的地址目前是硬编码在 `src/pages/Feedback.tsx:52` 中的，如需修改请直接编辑该文件中的 `serverURL` 配置项。
-:::
 ::: tip
 国内网络环境访问需要把Workers默认域名用自定义子域替换
 :::

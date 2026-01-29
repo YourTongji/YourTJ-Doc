@@ -58,19 +58,15 @@ npx wrangler secret put ADMIN_SECRET
 ```bash
 # .env 文件
 VITE_API_URL=https://jcourse-backend.workers.dev
-VITE_TURNSTILE_SITE_KEY=your-turnstile-site-key
-VITE_CAPTCHA_URL=https://your-captcha.vercel.app
+VITE_CAPTCHA_SITEKEY=your-captcha-site-key
+VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
 ```
 
 | 变量名 | 说明 | 必填 |
 |--------|------|------|
 | `VITE_API_URL` | 后端 API 地址 | 是 |
-| `VITE_TURNSTILE_SITE_KEY` | Cloudflare Turnstile 公钥 | 是 |
-| `VITE_CAPTCHA_URL` | YourTJCaptcha 服务地址 | 是 |
-
-::: tip Waline 配置说明
-Waline 评论服务的地址目前是硬编码在 `src/pages/Feedback.tsx:52` 中的，如需修改请直接编辑该文件中的 `serverURL` 配置项。
-:::
+| `VITE_CAPTCHA_SITEKEY` | YourTJ Captcha 站点密钥 | 是 |
+| `VITE_WALINE_SERVER_URL` | Waline 评论服务地址 | 是 |
 
 ### 环境文件
 
@@ -147,11 +143,13 @@ curl -X PUT \
 
 ### 前端集成
 
-Waline 服务地址目前是硬编码在 `src/pages/Feedback.tsx:52` 中的，如需修改请直接编辑该文件：
+在前端 `.env` 文件中配置 Waline 服务地址：
 
-```tsx
-serverURL: 'https://your-waline.vercel.app',  // 修改此处
+```bash
+VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
 ```
+
+Waline 客户端会从环境变量读取此地址，无需修改源代码。
 
 ## 安全建议
 
