@@ -3,8 +3,8 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 
 export default withMermaid(
   defineConfig({
-    title: "YourTJ 选课社区",
-    description: "同济大学课程评价与选课指南平台文档",
+    title: "YourTJ 选课社区开发文档",
+    description: "同济大学课程评价与选课指南平台开发文档",
     lang: 'zh-CN',
     base: '/',
 
@@ -17,7 +17,7 @@ export default withMermaid(
       ['meta', { name: 'theme-color', content: '#06b6d4' }],
       ['meta', { name: 'og:type', content: 'website' }],
       ['meta', { name: 'og:locale', content: 'zh_CN' }],
-      ['meta', { name: 'og:site_name', content: 'YourTJ 选课社区' }],
+      ['meta', { name: 'og:site_name', content: 'YourTJ 选课社区开发文档' }],
     ],
 
     themeConfig: {

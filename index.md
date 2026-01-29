@@ -18,6 +18,9 @@ hero:
     - theme: alt
       text: GitHub
       link: https://github.com/YourTongji/YourTJCourse-Serverless
+    - theme: brand
+      text: 前往选课社区
+      link: https://xk.yourtj.de
 
 features:
   - title: ✍️课程评价
