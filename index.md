@@ -17,7 +17,7 @@ hero:
       link: /guide/introduction
     - theme: alt
       text: 进入站点
-      link: https://xk.yourytj.de   
+      link: https://xk.yourtj.de   
 
 features:
   - title: "✍️课程评价"
