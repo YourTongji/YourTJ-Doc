@@ -3,8 +3,8 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 
 export default withMermaid(
   defineConfig({
-    title: "YourTJ 选课社区开发文档",
-    description: "同济大学课程评价与选课指南平台开发文档",
+    title: "YourTJ Hub 开发文档",
+    description: "同济大学校园社区平台 YourTJ Hub —— 板块化论坛、统一身份、搜索与多端访问开发文档",
     lang: 'zh-CN',
     base: '/',
 
@@ -17,7 +17,7 @@ export default withMermaid(
       ['meta', { name: 'theme-color', content: '#06b6d4' }],
       ['meta', { name: 'og:type', content: 'website' }],
       ['meta', { name: 'og:locale', content: 'zh_CN' }],
-      ['meta', { name: 'og:site_name', content: 'YourTJ 选课社区开发文档' }],
+      ['meta', { name: 'og:site_name', content: 'YourTJ Hub 开发文档' }],
     ],
 
     themeConfig: {
@@ -27,7 +27,7 @@ export default withMermaid(
         { text: '首页', link: '/' },
         { text: '指南', link: '/guide/introduction' },
         { text: '开发', link: '/development/overview' },
-        { text: 'RoadMap', link: '/roadmap/' },
+        { text: '路线图', link: '/roadmap/' },
         {
           text: '更多',
           items: [
@@ -53,39 +53,41 @@ export default withMermaid(
         ],
         '/development/': [
           {
-            text: '开发文档',
+            text: '架构与总览',
             items: [
-              { text: '概述', link: '/development/overview' },
-              { text: '前端架构', link: '/development/frontend' },
-              { text: '后端架构', link: '/development/backend' },
-              { text: '数据表结构', link: '/development/database' },
-              { text: 'API 接口', link: '/development/api' }
+              { text: '开发概述与架构', link: '/development/overview' }
             ]
           },
           {
-            text: '核心功能',
+            text: '核心模块',
             items: [
-              { text: '筛选逻辑', link: '/development/filtering' },
-              { text: '验证系统', link: '/development/verification' },
-              { text: '人机验证', link: '/development/captcha' },
-              { text: '评论系统', link: '/development/comments' },
-              { text: '唯一标识符', link: '/development/sqids' }
+              { text: '前端（Vue 3）', link: '/development/frontend' },
+              { text: '后端（Go）', link: '/development/backend' },
+              { text: '数据库', link: '/development/database' },
+              { text: 'API 契约', link: '/development/api' },
+              { text: '课评', link: '/development/courses' }
             ]
           },
           {
-            text: '部署配置',
+            text: '共享能力',
             items: [
-              { text: '环境变量', link: '/development/env-variables' },
-              { text: 'Cloudflare Workers', link: '/development/cloudflare' },
-              { text: 'Waline 部署', link: '/development/waline' }
+              { text: '身份与 OIDC', link: '/development/identity' },
+              { text: '搜索', link: '/development/search' },
+              { text: '移动端', link: '/development/mobile' }
+            ]
+          },
+          {
+            text: '质量保障',
+            items: [
+              { text: '测试策略', link: '/development/testing' }
             ]
           }
         ],
         '/roadmap/': [
           {
-            text: 'RoadMap',
+            text: '路线图',
             items: [
-              { text: '开发计划', link: '/roadmap/' }
+              { text: '能力状态', link: '/roadmap/' }
             ]
           }
         ],
@@ -102,11 +104,11 @@ export default withMermaid(
       },
 
       socialLinks: [
-        { icon: 'github', link: 'https://github.com/YourTongji/YourTJCourse-Serverless' }
+        { icon: 'github', link: 'https://github.com/YourTongji/YourTJ-Hub' }
       ],
 
       footer: {
-        message: '基于 <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer">MIT 许可</a>发布',
+        message: 'MIT 许可仅适用于 apps/gooseforum（基于 <a href="https://github.com/leancodebox/GooseForum" target="_blank" rel="noopener noreferrer">GooseForum</a> 的修改）；monorepo 其余部分暂无根级许可证',
         copyright: `Copyright © 2026-${new Date().getFullYear()} YourTongji Team`
       },
 

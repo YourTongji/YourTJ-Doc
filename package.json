@@ -1,7 +1,7 @@
 {
-  "name": "yourtj-docs",
+  "name": "yourtj-hub-docs",
   "version": "1.0.0",
-  "description": "YourTJ 选课社区文档站点",
+  "description": "YourTJ Hub 文档站点",
   "type": "module",
   "scripts": {
     "dev": "vitepress dev",
@@ -15,8 +15,8 @@
   },
   "keywords": [
     "tongji",
-    "course",
-    "review",
+    "forum",
+    "community",
     "documentation"
   ],
   "author": "YourTJ Team",

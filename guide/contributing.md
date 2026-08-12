@@ -1,282 +1,77 @@
 # 贡献指南
 
-感谢你对 YourTJ 选课社区的关注！我们欢迎任何形式的贡献。
+感谢你对 YourTJ Hub 的关注！我们欢迎任何形式的贡献：报告 Bug、提出功能建议、改进文档、提交代码。
 
 ## 贡献方式
 
 ### 🐛 报告 Bug
 
-如果你发现了 Bug，请在 GitHub Issues 中提交，包含以下信息：
+如果你发现了 Bug，请在 [GitHub Issues](https://github.com/YourTongji/YourTJ-Hub/issues) 中提交，请使用对应的模板并包含：
 
-- Bug 描述
-- 复现步骤
-- 期望行为
-- 实际行为
-- 截图（如有）
-- 环境信息（浏览器、操作系统等）
+- 问题描述与复现步骤
+- 期望行为与实际行为
+- 环境信息（版本、数据库类型、是否启用搜索/OIDC 等）
+- 相关日志（注意**不要**包含密钥、会话 token 等敏感信息）
 
 ### 💡 功能建议
 
-有新功能想法？欢迎提交 Feature Request：
-
-- 功能描述
-- 使用场景
-- 可能的实现方案
+使用 [Feature Request 模板](https://github.com/YourTongji/YourTJ-Hub/issues/new?template=feature-request.yml)提交。较大的改动建议先通过 Issue 对齐问题、用户与验收标准，再动手实现。
 
 ### 📝 改进文档
 
-文档改进同样重要：
+文档与代码同等重要。文档描述的是**当前支持的行为模型**，不保留"阶段计划/里程碑"；过时内容删除而不是保留"已废弃但有用"的副本（git 历史负责归档）。
 
-- 修复错别字
-- 补充说明
-- 添加示例
-- 翻译文档
+### 💻 提交代码
 
-### 🔧 提交代码
+#### 1. 阅读约定
 
-#### 开发流程
+开始编码前，先阅读：
 
-1. **Fork 仓库**
+- 仓库根目录 [`AGENTS.md`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/AGENTS.md)（仓库硬约束）
+- [`docs/development/README.md`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/docs/development/README.md)（开发流程入口）
+- 需求直接影响的 product / architecture / operations 文档
 
-```bash
-# Fork 后克隆到本地
-git clone https://github.com/your-username/your-repository-name.git
-```
+#### 2. 分支规范
 
-2. **创建分支**
+- 从最新的 `origin/dev` 创建 `feat/*`、`fix/*` 或 `docs/*` 分支；
+- Pull Request 目标为 **`dev`**（`main` 是生产分支，只经 PR + CI 发布）；
+- 不要在 `main` / `dev` 上直接开发；并行任务优先使用 worktree（`git worktree add`），一个 checkout 不要混多个分支。
 
-```bash
-# 从 main 分支创建新分支
-git checkout -b feature/your-feature-name
-```
+#### 3. 验证命令
 
-3. **安装依赖**
+实现后**实际运行**并报告结果（本地子集 ≠ CI 通过）：
 
 ```bash
-# 后端
-cd backend
-npm install
-
-# 前端
-cd frontend
-npm install
+make test
+make build
+git diff --check
 ```
 
-4. **本地开发**
+更细的分层验证命令见[测试策略](/development/testing)。
 
-```bash
-# 启动后端（需要配置 wrangler）
-cd backend
-npm run dev
+#### 4. 提交规范
 
-# 启动前端
-cd frontend
-npm run dev
-```
+- 使用 Conventional Commits：`feat:` / `fix:` / `docs:` / `refactor:` / `chore:` / `test:`；
+- 只 stage 本任务相关的文件，不动无关的脏/未跟踪文件；
+- 永不 `push --force` 到共享分支；发布走 PR + CI。
 
-5. **提交代码**
+#### 5. Pull Request 描述
 
-```bash
-git add .
-git commit -m "feat: add your feature"
-```
+PR 描述包含：动机、行为变更、验证（实际运行的命令 + 结果）、文档/契约影响、已知缺口。
 
-6. **推送并创建 PR**
+**契约变更纪律**：对已由 OpenAPI 覆盖的操作，后端行为 → `openapi.yaml` → 生成的 TypeScript → fixtures / 契约测试必须在**同一个 PR** 内同步修改；改动设计令牌（`tokens.css`）必须同 commit 更新移动端 `tokens.json`。
 
-```bash
-git push origin feature/your-feature-name
-```
+## 状态词纪律
 
-然后在 GitHub 上创建 Pull Request。
-
-## 代码规范
-
-### 提交信息格式
-
-使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
-
-```
-<type>(<scope>): <description>
-
-[optional body]
-
-[optional footer]
-```
-
-**类型（type）：**
-
-| 类型 | 说明 |
-|------|------|
-| `feat` | 新功能 |
-| `fix` | Bug 修复 |
-| `docs` | 文档更新 |
-| `style` | 代码格式（不影响功能） |
-| `refactor` | 重构 |
-| `perf` | 性能优化 |
-| `test` | 测试相关 |
-| `chore` | 构建/工具相关 |
-
-**示例：**
-
-```bash
-feat(frontend): add course filter by department
-fix(backend): correct review count calculation
-docs: update deployment guide
-```
-
-### 代码风格
-
-#### TypeScript
-
-- 使用 TypeScript 严格模式
-- 为函数参数和返回值添加类型注解
-- 避免使用 `any` 类型
-
-```typescript
-// Good
-function fetchCourse(id: string): Promise<Course> {
-  // ...
-}
-
-// Bad
-function fetchCourse(id): any {
-  // ...
-}
-```
-
-#### React
-
-- 使用函数组件和 Hooks
-- 组件文件使用 PascalCase 命名
-- 保持组件职责单一
-
-```tsx
-// Good
-export default function CourseCard({ course }: CourseCardProps) {
-  return (
-    <div className="course-card">
-      {/* ... */}
-    </div>
-  )
-}
-
-// Bad
-export default function coursecard(props) {
-  // ...
-}
-```
-
-#### CSS
-
-- 使用 Tailwind CSS 工具类
-- 避免内联样式
-- 保持类名顺序一致
-
-```tsx
-// Good
-<div className="flex items-center justify-between p-4 bg-white rounded-lg shadow">
-
-// Bad
-<div style={{ display: 'flex', padding: '16px' }}>
-```
-
-### 目录结构
-
-```
-src/
-├── components/     # 可复用组件
-│   ├── Button.tsx
-│   └── Card.tsx
-├── pages/          # 页面组件
-│   ├── Home.tsx
-│   └── Course.tsx
-├── services/       # API 服务
-│   └── api.ts
-├── hooks/          # 自定义 Hooks
-│   └── useAuth.ts
-├── utils/          # 工具函数
-│   └── format.ts
-└── types/          # 类型定义
-    └── index.ts
-```
-
-## Pull Request 指南
-
-### PR 标题
-
-使用与 Commit 相同的格式：
-
-```
-feat(frontend): add course search functionality
-```
-
-### PR 描述模板
-
-```markdown
-## 变更说明
-
-简要描述这个 PR 做了什么。
-
-## 变更类型
-
-- [ ] Bug 修复
-- [ ] 新功能
-- [ ] 重构
-- [ ] 文档更新
-- [ ] 其他
-
-## 测试
-
-描述如何测试这些变更。
-
-## 截图
-
-如有 UI 变更，请附上截图。
-
-## 相关 Issue
-
-Closes #123
-```
-
-### Review 流程
-
-1. 至少需要 1 位维护者 Review
-2. 所有 CI 检查通过
-3. 解决所有 Review 意见
-4. Squash merge 到 main 分支
-
-## 开发环境设置
-
-### 推荐工具
-
-- **编辑器**: VS Code
-- **VS Code 插件**:
-  - ESLint
-  - Prettier
-  - Tailwind CSS IntelliSense
-  - TypeScript Vue Plugin
-
-### 环境变量
-
-复制示例文件并配置：
-
-```bash
-cp ../frontend/.env.example ../frontend/.env
-```
-
-## 获取帮助
-
-- 📖 阅读 [开发文档](/development/overview)
-- 💬 在 Issues 中提问
-- 📧 联系维护者
+能力状态词只有四种：`Current` / `Partial` / `Planned` / `Decision needed`，只用于描述**具体可验证的行为**，禁止用"阶段 N / 已发货"等相对时间表述。文档生命周期词（`Active` / `Draft` / `Deprecated`）与之无关。
 
 ## 行为准则
 
-请遵守我们的行为准则：
+- 尊重他人，进行建设性讨论；
+- 敏感信息（密钥、内网地址、本地路径）绝不进入 commit / PR / 评论；
+- 不代写他人内容：管理员只处理违规（敏感词、广告、人身攻击、违法违规）与事实性修正，不做内容代笔，操作有审计与申诉渠道。
 
-- 尊重所有贡献者
-- 保持友善和专业
-- 接受建设性批评
-- 关注项目使用者的最佳利益
+## 联系方式
 
-感谢你的贡献！🎉
+- GitHub Issues：[https://github.com/YourTongji/YourTJ-Hub/issues](https://github.com/YourTongji/YourTJ-Hub/issues)
+- 线上论坛：[https://forum.yourtj.de](https://forum.yourtj.de)

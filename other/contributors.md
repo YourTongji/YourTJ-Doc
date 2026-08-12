@@ -44,7 +44,7 @@ onMounted(async () => {
 
   try {
     const response = await fetch(
-      'https://api.github.com/repos/YourTongji/YourTJCourse-Serverless/contributors',
+      'https://api.github.com/repos/YourTongji/YourTJ-Hub/contributors',
       { signal: controller.signal }
     )
     clearTimeout(timeoutId)

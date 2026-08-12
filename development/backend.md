@@ -1,244 +1,87 @@
-# 后端架构
+# 后端（Go）
 
-本文档详细介绍 YourTJ 选课社区后端的技术架构和实现细节
+本文介绍 YourTJ Hub 后端（`apps/gooseforum`）的技术栈、分层与关键机制。
 
-## 技术选型
+## 技术栈
 
-| 技术 | 用途 | 选型理由 |
-|------|------|----------|
-| Cloudflare Workers | 运行时 | 全球边缘部署，低延迟 |
-| Hono | Web 框架 | 轻量、快速、TypeScript 友好 |
-| D1 Database | 数据库 | SQLite 兼容，与 Workers 深度集成 |
-| Sqids | ID 编码 | 生成短且友好的唯一标识符 |
+- **Go 1.26 + Gin + GORM + Cobra**
+- 前端产物通过 `go:embed` 嵌入，输出单一二进制
 
-## 项目结构
+## CLI 子命令
 
-```
-backend/
-├── src/
-│   ├── index.ts          # 主入口，路由定义
-│   └── sqids.ts          # ID 编码工具
-│
-├── schema.sql            # 数据库结构定义
-├── wrangler.toml         # Cloudflare 配置
-├── package.json          # 依赖配置
-└── tsconfig.json         # TypeScript 配置
-```
+`main.go` 使用 Cobra 提供命令行入口：
 
-## 核心代码解析
+| 子命令 | 用途 |
+|---|---|
+| `serve` | 启动论坛服务（默认端口 5234） |
+| `mock` | 生成模拟数据 |
+| `rebuild-search-index` | 全量重建 Meilisearch 索引 |
+| `migrate-files` | BLOB → 对象存储的游标式文件迁移 |
 
-### 应用入口 (index.ts)
+## 分层
 
-```typescript
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-import { encodeReviewId, decodeReviewId } from './sqids'
+| 目录 | 职责 |
+|---|---|
+| `app/bundles` | 工具集：连接、事件总线、jwtopt、i18n、captcha、日志、缓存等 |
+| `app/models` | GORM 模型 + `app/migration` 迁移 |
+| `app/service` | 业务逻辑：users、topics、mail、oauth、theme 等 |
+| `app/http/controllers/api` | JSON API：auth、topic、user、admin、chat、notification、file 等 |
+| `app/http/controllers/forum` | 页面渲染（GoHTML 三模式：payload + render + SEO） |
+| `app/http/middleware` | JWT 认证、访问日志、维护模式、限流等 |
 
-type Bindings = {
-  DB: D1Database
-  CAPTCHA_SITEVERIFY_URL: string
-  ADMIN_SECRET: string
-}
+## 关键机制
 
-const app = new Hono<{ Bindings: Bindings }>()
-```
+### 会话与认证
 
-### CORS 配置
+- JWT 会话凭证（HS256、自签、7 天 TTL、携带 `jti`），仅作**会话凭证**而非身份真相；
+- 会话由 `jti` + `user_sessions` 支撑，可逐条撤销；`TokenVersion` 作为全局失效兜底；
+- 登录枚举抵抗：登录错误不区分"用户不存在 / 密码错误"，未知账号也执行同成本的 PBKDF2 验证。
 
-允许跨域请求：
+### 限流（滥用防护）
 
-```typescript
-app.use('/*', cors({
-  origin: '*',
-  allowHeaders: ['Content-Type', 'x-admin-secret'],
-  allowMethods: ['POST', 'GET', 'DELETE', 'PUT', 'OPTIONS']
-}))
-```
+- **每动作**固定窗口限流（IP + user），覆盖注册/登录/找回密码/改密/TOTP/发帖/评论/上传/交互/llms/mcp/课评等 30+ 动作；
+- 触发返回 `429 + Retry-After`；
+- 另有验证码开关、蜜罐（honeypot）、提交时间检测、新用户发帖阈值；全部限流与开关可在管理后台热调。
 
-### 缓存控制
+### 任务队列与后台任务
 
-禁用缓存确保数据实时性：
+- `task_queue` 行携带 `type` 字符串，worker 按 **type 前缀**轮询，任务类型互不泄漏：
+  - `email.*`（激活 / 重置密码）
+  - `export`（数据导出）
+  - `file-migrate`（BLOB → 对象存储迁移）
+- 导出与迁移任务把进度写入 `task_json`（processed/total/errorCount、游标 lastId），管理后台可渲染实时进度，重启后可续跑；
+- 导出文件落在 `data/export/`，保留 7 天（每日 cron 清理）。
 
-```typescript
-app.use('/*', async (c, next) => {
-  await next()
-  c.res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
-  c.res.headers.set('Pragma', 'no-cache')
-})
-```
+### Agent（机器人）
 
-### 错误处理
+- Agent 是 `users` 行 + `agents` 行（同一 user id 主键关联），`users.actor_type` 区分人类（0）/ 机器人（1）；
+- 每个 Agent 有唯一 bearer token（`agt_…`），创建/轮换时仅展示一次；数据库只存 **SHA-256 哈希 + 8 字符非机密前缀**；
+- 禁用即**吊销**凭据（清空哈希，泄出的 token 永远无法再通过校验），重新启用必须先轮换；
+- 机器人行被人形认证路径（密码 / OAuth / OIDC / 会话中间件）一律拒绝；
+- Agent 公开 API：`/api/v1/agent/*` 六操作（me、主题列表/创建、帖子列表/创建、搜索），已由 OpenAPI 契约覆盖。
 
-统一的错误处理中间件：
+### 审计与治理
 
-```typescript
-app.onError((err, c) => {
-  console.error('Error:', err)
-  return c.json({ error: err.message || 'Internal Server Error' }, 500)
-})
-```
+- 敏感词拦截或进入待审队列（ProcessStatus=2，管理后台批准/拒绝）；
+- 保留/禁用用户名治理，禁用用户名自动冻结既有账号；
+- 审核操作有审计日志；服务条款（ToS）可在管理后台编辑并在 `/terms` 渲染。
 
-## 人机验证
+## 一致性约束
 
-### YourTJCaptcha 验证函数
+- 关键副作用（通知、索引同步、积分分发）幂等、可重试、可观测；
+- 业务生命周期用显式状态机（如主题 draft / published / archived / deleted），不用布尔组合；
+- 迁移在启动时执行，失败即中止启动（fail-fast）。
 
-```typescript
-async function verifyTongjiCaptcha(token: string, siteverifyUrl: string) {
-  try {
-    const res = await fetch(siteverifyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token })
-    })
-    const data = await res.json() as { success: boolean }
-    return data.success === true
-  } catch (e) {
-    console.error('Captcha service error:', e)
-    return false
-  }
-}
-```
-
-## 路由设计
-
-### 公开 API
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/settings/show_icu` | 获取显示设置 |
-| GET | `/api/departments` | 获取开课单位列表 |
-| GET | `/api/courses` | 获取课程列表 |
-| GET | `/api/course/:id` | 获取课程详情 |
-| POST | `/api/review` | 提交评价 |
-
-### 管理 API
-
-所有管理 API 挂载在 `/api/admin` 路径下：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/admin/reviews` | 获取评价列表 |
-| PUT | `/api/admin/review/:id` | 更新评价 |
-| POST | `/api/admin/review/:id/toggle` | 切换显示状态 |
-| DELETE | `/api/admin/review/:id` | 删除评价 |
-| GET | `/api/admin/courses` | 获取课程列表 |
-| PUT | `/api/admin/course/:id` | 更新课程 |
-| DELETE | `/api/admin/course/:id` | 删除课程 |
-| POST | `/api/admin/course` | 创建课程 |
-| GET | `/api/admin/settings` | 获取所有设置 |
-| PUT | `/api/admin/settings/:key` | 更新设置 |
-
-## 管理员认证
-
-使用中间件验证管理员身份：
-
-```typescript
-const admin = new Hono<{ Bindings: Bindings }>()
-
-admin.use('/*', async (c, next) => {
-  const input = c.req.header('x-admin-secret')
-  if (!input || input !== c.env.ADMIN_SECRET) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
-  await next()
-})
-
-// 挂载管理路由
-app.route('/api/admin', admin)
-```
-
-## 数据库操作
-
-### 查询示例
-
-```typescript
-// 获取课程列表
-const { results } = await c.env.DB.prepare(`
-  SELECT c.id, c.code, c.name, c.review_avg as rating,
-         c.review_count, c.is_legacy, t.name as teacher_name
-  FROM courses c
-  LEFT JOIN teachers t ON c.teacher_id = t.id
-  WHERE 1=1 ${whereClause}
-  ORDER BY c.review_count DESC
-  LIMIT ? OFFSET ?
-`).bind(...params, limit, offset).all()
-```
-
-### 插入示例
-
-```typescript
-// 提交评价
-await c.env.DB.prepare(`
-  INSERT INTO reviews (course_id, rating, comment, semester, is_legacy,
-                       reviewer_name, reviewer_avatar)
-  VALUES (?, ?, ?, ?, 0, ?, ?)
-`).bind(course_id, rating, comment, semester,
-        reviewer_name || '', reviewer_avatar || '').run()
-```
-
-### 更新统计
-
-评价提交后自动更新课程统计：
-
-```typescript
-await c.env.DB.prepare(`
-  UPDATE courses SET
-    review_count = (SELECT COUNT(*) FROM reviews
-                    WHERE course_id = ? AND is_hidden = 0),
-    review_avg = (SELECT AVG(rating) FROM reviews
-                  WHERE course_id = ? AND is_hidden = 0 AND rating > 0)
-  WHERE id = ?
-`).bind(course_id, course_id, course_id).run()
-```
-
-## Sqids 集成
-
-为评价生成友好的短 ID：
-
-```typescript
-function addSqidToReviews(reviews: any[]): any[] {
-  return reviews.map(review => ({
-    ...review,
-    sqid: encodeReviewId(review.id)
-  }))
-}
-```
-
-## 环境变量
-
-| 变量 | 说明 | 设置方式 |
-|------|------|----------|
-| `DB` | D1 数据库绑定 | wrangler.toml |
-| `CAPTCHA_SITEVERIFY_URL` | 验证服务地址 | wrangler secret |
-| `ADMIN_SECRET` | 管理密钥 | wrangler secret |
-
-## 本地开发
+## 验证
 
 ```bash
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm run dev
-
-# 部署
-npm run deploy
+cd apps/gooseforum
+go vet ./... && go test ./...
 ```
 
-## 性能优化
+## 相关文档
 
-### 查询优化
-
-- 使用索引加速查询
-- 分页减少数据传输
-- 只查询必要字段
-
-### 缓存策略
-
-- 禁用浏览器缓存确保数据实时
-- 可考虑添加 KV 缓存热点数据
-
-## 下一步
-
-- [数据表结构](/development/database) - 了解数据库设计
-- [API 接口](/development/api) - 查看完整 API 文档
+- [概述与架构](/development/overview)
+- [身份与 OIDC](/development/identity)
+- [数据库](/development/database)
+- [测试策略](/development/testing)

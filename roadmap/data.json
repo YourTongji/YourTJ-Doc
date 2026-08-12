@@ -6,42 +6,41 @@
       "icon": "✓",
       "items": [
         {
-          "title": "Waline 评论系统",
-          "description": "基于 Waline 的留言板，部署在 Vercel，使用 Neon PostgreSQL 数据库"
+          "title": "论坛核心",
+          "description": "主题与回复、板块、通知、私信、草稿、Markdown、RBAC 管理与多语言界面（en/zh/ja/it）；make build 单一二进制验证通过"
         },
         {
-          "title": "YourTJCaptcha 人机验证",
-          "description": "自托管的人机验证服务，部署在 Vercel"
+          "title": "数据库",
+          "description": "SQLite 默认，MySQL 可选，PostgreSQL 主库支持（issue #11）；文件库固定 SQLite"
         },
         {
-          "title": "加密积分钱包",
-          "description": "用于点评激励的加密积分钱包，使用 PBKDF2+BIP39 实现用学号+自定义 PIN 生成不可逆向助记词"
+          "title": "文件存储",
+          "description": "可插拔存储：SQLite BLOB 默认 + S3 兼容对象存储（MinIO/COS/OSS/R2），含迁移任务与 CLI"
         },
         {
-          "title": "积分获取标准",
-          "description": "制定积分获取标准：明确点评、被点赞、首次点评、点评冷门课程的积分逻辑"
+          "title": "内容治理",
+          "description": "敏感词拦截/待审队列、保留/禁用用户名、限流、验证码、审计、服务条款与数据导入导出"
         },
         {
-          "title": "积分悬赏广场",
-          "description": "建立积分悬赏广场，可以使用积分进行任务悬赏"
+          "title": "滥用防护",
+          "description": "每动作限流（429 + Retry-After）、honeypot、提交时间检测、新用户发帖门槛，全部可在管理后台热调"
         },
         {
-          "title": "数据表标准化",
-          "description": "与同济一系统课程爬取的数据表统一数据表标准"
+          "title": "AI 可读内容",
+          "description": "/llms.txt、/llms-full.txt、/p/posts/{id}.md，10 秒缓存 + 事件失效，导出硬上限并截断标注"
         },
         {
-          "title": "API 对接",
-          "description": "与同济排课模拟器对接 API，统一数据表标准"
+          "title": "论坛内积分记账",
+          "description": "主题/回复奖励源键幂等、回复删除原子回滚、迁移 v14 重建缺失余额"
         },
         {
-          "title": "历史数据清洗",
-          "description": "清洗老乌龙茶文档数据"
+          "title": "单一二进制部署",
+          "description": "make build 产出 bin/yourtj-hub，前端 go:embed 进后端，无 nginx/CDN 拆分"
         },
         {
-          "title": "学期课程爬取自动化",
-          "description": "学期课程爬取自动化以及数据清洗"
+          "title": "Monorepo 骨架 + CI",
+          "description": "apps/packages/services/deploy/docs 结构，backend/frontend/contract/mobile 四套 CI"
         }
-        
       ]
     },
     {
@@ -50,20 +49,32 @@
       "icon": "⟳",
       "items": [
         {
-          "title": "管理后台优化",
-          "description": "管理后台图形化界面优化"
+          "title": "搜索",
+          "description": "Meilisearch 聚合搜索：一个输入框覆盖主题/用户/板块，拼音/首字母匹配，事件驱动索引同步（issue #22）"
         },
         {
-          "title": "数据库安全加固",
-          "description": "数据库增加验证逻辑和安全加固"
+          "title": "身份与安全",
+          "description": "密码、TOTP 2FA、GitHub OAuth、内建 OIDC Provider（授权码 + PKCE S256、RS256 id_token、数字 sub）"
         },
         {
-          "title": "积分站OIDC身份认证",
-          "description": "为积分站增加OIDC身份认证，可以在支持OIDC的平台使用积分站登陆绑定"
+          "title": "课评",
+          "description": "跨方言课程目录 + 离线 course-import CLI + 匿名课评写入/审核 + SSR/JSON 只读接口；移动端课程 UI 与正文检索仍 Planned"
         },
         {
-          "title": "URL 参数化（拟）",
-          "description": "将查询条件（关键词、页码、筛选条件）直接映射到 URL 上，方便维持用户的搜索状态避免重复搜索"
+          "title": "API 契约",
+          "description": "OpenAPI 3.1 受控覆盖：登录/TOTP/OIDC exchange/会话/主题写入/Agent 六操作/课程只读；lint + 生成 + 契约测试"
+        },
+        {
+          "title": "移动端",
+          "description": "Flutter/Melos 工作区：四底部导航 shell、全局发布、Markdown 编辑器、OIDC exchange 登录；尚未上架"
+        },
+        {
+          "title": "积分派发",
+          "description": "论坛本地记账已 Current，但事件总线为内存态，进程丢失会漏发，缺持久 outbox 与对账"
+        },
+        {
+          "title": "Agent 与 MCP",
+          "description": "六操作 Agent API + 单一二进制内 /mcp 端点（agt_ 令牌、默认关闭）；mention 解析与 webhook 仍 Planned"
         }
       ]
     },
@@ -73,8 +84,24 @@
       "icon": "→",
       "items": [
         {
-          "title": "乌龙茶数据互通",
-          "description": "与乌龙茶网站课程评论统一数据表标准，实现数据互通，进一步实时互通数据"
+          "title": "积分跨平台结算",
+          "description": "services/credit 落地（PostgreSQL 账本 + 商户分发 API /pay/distribute），论坛作为商户产生积分事件"
+        },
+        {
+          "title": "移动端上架",
+          "description": "发布到应用商店，补齐推送通知、自定义主题同步与 ja/it 语言包"
+        },
+        {
+          "title": "契约全量覆盖 + Dart 生成",
+          "description": "全路由 OpenAPI 覆盖 + 移动端 Dart 代码生成，替代手工维护的 Dart 镜像"
+        },
+        {
+          "title": "MCP 公开化",
+          "description": "面向第三方的 OAuth 2.1 + RFC 9728 资源元数据、SSE 回退、webhook/mention 唤醒"
+        },
+        {
+          "title": "课评移动端",
+          "description": "移动端课程浏览 UI 与课评正文内搜索"
         }
       ]
     },
@@ -82,7 +109,28 @@
       "id": "backlog",
       "title": "Backlog",
       "icon": "⋯",
-      "items": []
+      "items": [
+        {
+          "title": "统一 MFA 策略",
+          "description": "为内建 OIDC / GitHub OAuth 登录路径复用论坛 TOTP（Decision needed）"
+        },
+        {
+          "title": "数据全生命周期",
+          "description": "账号删除/导出能力，遵循产品原则 12（目的/可见性/保留/导出/删除）"
+        },
+        {
+          "title": "结构治理",
+          "description": "拆分上游巨型 controller（如 payload.go 约 72KB）"
+        },
+        {
+          "title": "SQLite→PostgreSQL 自动化迁移",
+          "description": "当前为手动流程，无自动化工具"
+        },
+        {
+          "title": "校园服务整合",
+          "description": "选课/课评等未来校园服务通过 OIDC 共享身份与积分结算"
+        }
+      ]
     }
   ]
 }

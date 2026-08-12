@@ -1,150 +1,89 @@
 # 项目简介
 
-## YourTJ 项目概述
+## YourTJ Hub 是什么
 
-**YourTJ** 社区 包含选课社区和积分系统两大核心功能。我们的愿景是：建立不记名，自由，简洁，高效的选课社区。
+**YourTJ Hub** 是一个面向同济校园的社区平台，以板块化论坛为核心，希望让校园经验、问题与观点不再消失在短暂的信息流中。项目提供搜索、统一身份、内容治理和多端访问能力，并为未来的课程、课评等校园服务保留共享基础设施。
 
----
+- 线上站点：[https://forum.yourtj.de](https://forum.yourtj.de)
+- 源码仓库：[YourTongji/YourTJ-Hub](https://github.com/YourTongji/YourTJ-Hub)
+- 默认开发分支：`dev`（PR 目标分支），`main` 为生产分支
 
-## YourTJ 选课社区
+## 项目愿景与定位
 
-**YourTJ 选课社区** 是一个专为同济大学学生打造的课程评价与选课指南平台。用于汇集来自同济学生的真实课程评价，帮助学生在选课时做出更明智的决策。
+YourTJ Hub 希望让校园经验、问题与观点沉淀为长期有价值、可检索的信息，而不是淹没在短暂的信息流里。产品目标（详见仓库内 `docs/product/vision-and-principles.md`）：
 
-### 核心功能
+- 学生使用**一个账号**即可访问论坛与未来的校园服务，无需重复注册；
+- 论坛内容有清晰的板块、上下文与可回退的治理流程，不退化为一维短内容流；
+- 站内内容统一可搜索（中文友好），信息长期积累而非被时间线冲走；
+- 贡献可获得积分并在跨平台结算，但**积分不是可充值货币**（不可充值、不可提现、不可自由转账）；
+- 移动端（iOS/Android）与 Web 共享同一套 API 与体验语义。
 
-#### 📚 课程评价系统
-- 支持对课程进行多维度评价（教学质量、课程难度、给分情况等）
-- 基于 Markdown 的富文本评价编辑器
-- 评价模板快速填写功能
+## 与 GooseForum 的关系
 
-#### 🔍 智能筛选
-- 按开课单位，有无评论筛选课程
-- 支持关键词搜索
-- 移动端友好，专门适配了移动端UI
+YourTJ Hub 的核心论坛直接演进自 [GooseForum](https://github.com/leancodebox/GooseForum)，保留了 Go 后端、Vue 前端与 GoHTML 模板打包进**同一个可执行文件**的部署方式。这里不是对上游的薄包装：产品、认证、搜索、数据、移动端与运维能力都在本仓库中持续演进，同时保留了可合并上游更新的代码结构（`apps/gooseforum` 保留 GooseForum 的 Go module 名称与主要分层）。
 
-#### 💬 社区互动
-- 支持匿名评价和展示点评人的选课评价
-- 通过waline评论系统实时留言反馈
+## 能力状态
 
-#### 🛡️ 安全验证
-- 集成 YourTJCaptcha 人机验证服务
-- 防止恶意刷评
-- 保障评价真实可信
+下表是当前的能力状态，`Current` / `Partial` / `Planned` 是严格的实现状态（完整定义与缺口见仓库内 `docs/product/current-state.md`，本站[路线图](/roadmap/)是它的中文快照）：
 
-### 技术架构
+| 领域 | 状态 | 当前能力 |
+|---|---|---|
+| 论坛 | `Current` | 主题与回复、板块、通知、私信、草稿、Markdown、RBAC 管理与多语言界面 |
+| 身份与安全 | `Partial` | 密码、GitHub OAuth、论坛内建 OIDC Provider、TOTP 2FA、可撤销会话；移动端与外部服务可使用标准授权码 + PKCE 登录 |
+| 搜索 | `Partial` | Meilisearch 聚合搜索、拼音匹配与事件驱动索引；搜索服务为可选依赖 |
+| 数据与文件 | `Current` | SQLite 默认，支持 MySQL / PostgreSQL 主库；文件可存于 SQLite BLOB 或 S3 兼容对象存储 |
+| 内容治理 | `Current` | 敏感词审核、限流与验证码、审计、服务条款、数据导入导出 |
+| 移动端 | `Partial` | Flutter 客户端、共享设计语言与 OIDC 登录已实现，尚未发布到应用商店 |
+| API 契约 | `Partial` | OpenAPI 校验、TypeScript 生成与契约测试已落地，尚未覆盖全部接口 |
+| 积分（论坛内记账） | `Current` | 主题/回复奖励在论坛内幂等记账、回复删除原子回滚 |
+| 积分（跨平台结算） | `Planned` | `services/credit` 跨平台结算尚未上线；不可充值、不可提现、不可自由转账 |
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                      Frontend                            │
-│              React + TypeScript + Tailwind CSS           │
-└─────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────┐
-│                      Backend                             │
-│              Cloudflare Workers + Hono                   │
-│                    D1 Database                           │
-└─────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────┐
-│                   External Services                      │
-│     Waline (评论系统)  │  YourTJCaptcha (人机验证)       │
-└─────────────────────────────────────────────────────────┘
+## 架构概览
+
+```mermaid
+flowchart LR
+    Browser["浏览器"] --> Hub["YourTJ Hub 单一二进制<br/>Go · Gin · Vue 3 · GoHTML"]
+    Mobile["Flutter 客户端<br/>Partial"] -->|JSON API| Hub
+    Hub -->|标准 OIDC Provider| Clients["移动端与校园服务"]
+    Hub --> DB["SQLite / MySQL / PostgreSQL"]
+    Hub --> Search["Meilisearch<br/>可选、可重建"]
 ```
 
-### 项目特点
+项目遵循四个重要约束：
 
-| 特点 | 描述 |
-|------|------|
-| **Serverless 架构** | 基于 Cloudflare Workers，无需管理服务器 |
-| **现代前端技术栈** | React 18 + TypeScript + Tailwind CSS |
-| **关系型数据库** | Cloudflare D1 SQLite 数据库 |
-| **安全可靠** | 多层验证机制，保障数据安全 |
-| **开源共建** | 完全开源，欢迎社区贡献 |
+- **单一二进制**：Vue 构建产物与 GoHTML 模板通过 `go:embed` 进入 Go 可执行文件，生产环境不拆分前后端；
+- **数据库是真相源**：搜索索引、缓存和计数都是可重建投影，不承载唯一业务事实；
+- **身份可互操作**：论坛 `users` 表是身份真相源，内建 OIDC Provider 对外签发数值型 `sub`；
+- **上游可同步**：`apps/gooseforum` 保留 GooseForum 的 Go module 名称与主要分层，便于持续合并上游更新。
 
----
+## 技术栈
 
-## YourTJ 积分系统
+| 范围 | 技术 |
+|---|---|
+| 后端 | Go 1.26、Gin、GORM、Cobra |
+| Web | Vue 3、TypeScript、Vite、Tailwind CSS、GoHTML |
+| Mobile | Flutter、Dart、Melos、Riverpod |
+| 数据 | SQLite、MySQL、PostgreSQL、Meilisearch |
+| 身份 | 内建 OIDC Provider、GitHub OAuth、JWT、TOTP |
+| 交付 | `go:embed` 单一二进制、Docker Compose、GitHub Actions |
 
-**YourTJ Credit** 是为 YOURTJ 社区提供的积分系统，包含去中心化钱包、任务/商品交易、申诉/举报和管理后台等功能。
+## 仓库结构
 
-### 核心功能
-
-#### 💳 去中心化钱包
-- 无账户系统：由学号 + PIN 在本地浏览器派生密钥（PBKDF2）
-- 生成 3 词助记词
-- 请求签名：涉及资金/下单/发单/举报等写操作必须携带签名（防重放）
-
-#### 🛒 任务/商品交易
-- **任务市场**：发布任务、接单、确认完成
-- **商品市场**：发布商品、下单、卖家处理、买家确认
-- **订单托管**：安全的托管机制保障交易安全
-
-#### 🛡️ 申诉与举报
-- 交易举报：针对交易纠纷的申诉机制
-- 内容举报：针对违规内容的举报功能
-- 飞书通知：举报自动触发飞书通知（可选）
-
-#### 👨‍💼 管理后台
-- JWT 认证的管理员登录系统
-- 举报/申诉处理：结案/驳回/补偿/下架/改价
-- 扣回单管理：管理员可执行扣回操作
-- 用户查询：查询指定卡号钱包/流水
-- 兑换码管理：创建、查询、禁用兑换码
-
-### 技术架构
-
+```text
+apps/
+  gooseforum/       Go + Vue 论坛，前端最终嵌入后端二进制
+  mobile/           Flutter / Melos 移动端工作区
+packages/
+  api-contract/     OpenAPI、fixtures 与生成脚本
+services/           Meilisearch、归档 Casdoor 配置、积分等服务配置
+deploy/             容器、环境与发布脚本
+docs/               产品、架构、开发和运维文档（英文规格，本站中文指南是对它的解读）
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      Frontend                            │
-│              React + TypeScript + Tailwind CSS           │
-└─────────────────────────────────────────────────────────┘
-                            │
-            ┌───────────────┴───────────────┐
-            ▼                               ▼
-┌─────────────────────────┐     ┌─────────────────────────┐
-│   backend-core          │     │   backend-market        │
-│   (钱包/转账/流水        │     │   (任务/商品/订单        │
-│    词库/管理/兑换码)     │     │    托管/举报)            │
-└─────────────────────────┘     └─────────────────────────┘
-            │                               │
-            └───────────────┬───────────────┘
-                            ▼
-              ┌─────────────────────────┐
-              │   Turso (libSQL)        │
-              │   SQLite 数据库         │
-              └─────────────────────────┘
-```
-
-### 项目特点
-
-| 特点 | 描述 |
-|------|------|
-| **Serverless 架构** | 基于 Vercel Serverless Functions |
-| **分体部署** | Core 和 Market 分离 |
-| **安全模型** | 学号+PIN 派生密钥、HMAC-SHA256 签名验证 |
-| **数据库** | Turso (libSQL) 边缘数据库 |
-
----
 
 ## 快速链接
 
-### 选课社区
-- [快速开始](/guide/getting-started) - 了解如何部署和使用
-- [开发文档](/development/overview) - 深入了解技术实现
-- [GitHub 仓库](https://github.com/YourTongji/YourTJCourse-Serverless)
-
-### 积分系统
-- [GitHub 仓库](https://github.com/YourTongji/YourTJ-Credit-Serverless)
-- 项目 README：包含详细的部署和开发指南
-
-### 通用
-- [贡献指南](/guide/contributing) - 参与项目开发
-
-## 联系我们
-
-如有问题或建议，欢迎通过以下方式联系：
-
-- GitHub Issues: [提交问题](https://github.com/YourTongji/YourTJCourse-Serverless/issues)
-- 邮箱: support@yourtj.de
+- 进入站点：[https://forum.yourtj.de](https://forum.yourtj.de)
+- GitHub 仓库：[https://github.com/YourTongji/YourTJ-Hub](https://github.com/YourTongji/YourTJ-Hub)
+- 仓库文档入口：[docs/README.md](https://github.com/YourTongji/YourTJ-Hub/blob/dev/docs/README.md)
+- 快速开始：[快速开始](/guide/getting-started)
+- 反馈问题 / 功能建议：[Issues](https://github.com/YourTongji/YourTJ-Hub/issues)
