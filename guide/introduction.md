@@ -4,7 +4,7 @@
 
 **YourTJ Hub** 是一个面向同济校园的社区平台，以板块化论坛为核心，希望让校园经验、问题与观点不再消失在短暂的信息流中。项目提供搜索、统一身份、内容治理和多端访问能力，并为未来的课程、课评等校园服务保留共享基础设施。
 
-- 线上站点：[https://forum.yourtj.de](https://forum.yourtj.de)
+- 线上站点：[https://f.yourtj.de](https://f.yourtj.de)
 - 源码仓库：[YourTongji/YourTJ-Hub](https://github.com/YourTongji/YourTJ-Hub)
 - 默认开发分支：`dev`（PR 目标分支），`main` 为生产分支
 
