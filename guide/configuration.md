@@ -1,173 +1,114 @@
 # 配置说明
 
-本文档详细介绍 YourTJ 选课社区的各项配置选项。
+YourTJ Hub 的论坛使用 **`apps/gooseforum/config.toml`** 进行配置（**不是环境变量**）。首次启动时由内嵌模板生成该文件，它已被 Git 忽略，**不应提交**——其中包含签名密钥与第三方服务凭据。
 
-## 后端配置
+- 本地开发：`apps/gooseforum/config.toml`
+- 服务器：`main/config.toml`（生产）/ `dev/config.toml`（测试线）
 
-### wrangler.toml
+## `[app]` 应用设置
 
-后端使用 Cloudflare Workers，配置文件为 `wrangler.toml`：
+| 键 | 说明 |
+|---|---|
+| `env` | 运行环境。`local` 绑定 `127.0.0.1`；任何非 `local` 值都会强制 session cookie 携带 `Secure`（即使 `server.url` 是 `http://…`，issue #113） |
+| `debug` | 调试模式开关 |
+| `maintenance` | 维护模式 |
+| `signingKey` | **签名密钥，必填且 fail-closed**：缺失、空白或 `REPLACE_SIGNING_KEY` 占位值都会导致启动直接退出（防止伪造密码重置令牌，issue #106） |
+| `cdn_url` | CDN 前缀（可选） |
+
+生成签名密钥：
+
+```bash
+openssl rand -base64 32
+```
+
+## `[server]` 服务设置
+
+| 键 | 说明 |
+|---|---|
+| `url` | 站点 URL（用于生成链接与 cookie 判定） |
+| `port` | 监听端口，默认 `5234` |
+| `accessLog` | 访问日志开关 |
+| `gzip` | gzip 压缩开关 |
+| `trusted_proxies` | 信任的反向代理地址（默认仅信任 `127.0.0.1` / `::1`） |
+
+## `[jwtopt]` 会话凭证
+
+| 键 | 说明 |
+|---|---|
+| `validTime` | JWT 会话有效时长（秒），默认 `604800`（7 天） |
+
+## `[db]` 数据库
+
+| 键 | 说明 |
+|---|---|
+| `[db.default]` | **主库**：SQLite 默认，也支持 MySQL 与 PostgreSQL（issue #11） |
+| `[db.file]` | **文件库**（附件 BLOB）：固定使用 SQLite |
+| `migration` | 启动时执行迁移（`on` / `off`），默认 `on` |
+
+切换主库到本地 PostgreSQL 示例：
 
 ```toml
-name = "jcourse-backend"
-main = "src/index.ts"
-compatibility_date = "2026-01-01"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "jcourse-db"
-database_id = "your-database-id"
+[db.default]
+connection = "postgres"
+url = "host=127.0.0.1 user=yourtj password=yourtj dbname=yourtj port=5432 sslmode=disable"
 ```
 
-| 配置项 | 说明 |
-|--------|------|
-| `name` | Workers 项目名称 |
-| `main` | 入口文件路径 |
-| `compatibility_date` | 兼容性日期 |
-| `binding` | 数据库绑定名称 |
-| `database_name` | D1 数据库名称 |
-| `database_id` | D1 数据库 ID |
+二进制在首次启动时会对主库全部模型执行 AutoMigrate，并运行版本化数据迁移。
 
-### 环境变量
+## `[meilisearch]` 搜索（可选）
 
-通过 `wrangler secret` 设置的敏感配置：
+| 键 | 说明 |
+|---|---|
+| `url` | Meilisearch 地址，本地默认 `http://localhost:7700` |
+| `masterkey` | Meilisearch master key |
 
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `CAPTCHA_SITEVERIFY_URL` | YourTJCaptcha 验证服务地址 | `https://captcha.example.com` |
-| `ADMIN_SECRET` | 管理后台访问密钥 | 随机生成的强密码 |
+搜索是可选的：未配置时搜索功能整体不可用，但不影响论坛其余功能。
 
-设置方法：
+## `[log]` 日志
 
-```bash
-# 设置人机验证 URL
-npx wrangler secret put CAPTCHA_SITEVERIFY_URL
-# 输入: https://your-captcha-service.vercel.app
+| 键 | 说明 |
+|---|---|
+| `type` / `path` / `rolling` | 日志类型、路径与轮转 |
+| `level` | `debug` / `info` / `warn` / `error` |
+| `format` | `json` / `console` |
+| `errorPath` | WARN/ERROR 独立轮转文件 |
+| `logIp` | 访问日志是否记录客户端 IP，默认关闭（隐私考量） |
+| `slowSQL` | 慢 SQL 日志 |
 
-# 设置管理密钥
-npx wrangler secret put ADMIN_SECRET
-# 输入: your-secure-admin-secret
-```
+> 日志配置修改后需要重启进程。
 
-## 前端配置
+## `[github]` GitHub OAuth
 
-### 环境变量
+配置 GitHub OAuth 的 `client_id` / `client_secret`，用于 GitHub 登录。
 
-前端使用 Vite，环境变量以 `VITE_` 前缀开头：
+## `[oidc]` 内建 OIDC Provider
 
-```bash
-# .env 文件
-VITE_API_URL=https://jcourse-backend.workers.dev
-VITE_CAPTCHA_SITEKEY=your-captcha-site-key
-VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
-```
+论坛内建 OIDC Provider 从 `[oidc]` 段读取配置，为第一方客户端（移动端、未来的校园服务）签发标准 OIDC 令牌：
 
-| 变量名 | 说明 | 必填 |
-|--------|------|------|
-| `VITE_API_URL` | 后端 API 地址 | 是 |
-| `VITE_CAPTCHA_SITEKEY` | YourTJ Captcha 站点密钥 | 是 |
-| `VITE_WALINE_SERVER_URL` | Waline 评论服务地址 | 是 |
+| 键 | 说明 |
+|---|---|
+| `enabled` | 是否启用；启用时在 `/api/oauth` 下挂载 OIDC 端点 |
+| `issuer` | issuer 值，默认取 `server.url` + `/api/oauth`；**必须与对外公布的 discovery 值完全一致** |
+| `signing_key_file` | RS256 签名私钥文件（也可用内联 `signing_key`；二者都为空时自动生成并持久化） |
+| `access_token_ttl` / `auth_request_ttl` / `id_token_ttl` | 各类令牌有效期（秒），默认 `3600` / `600` / `3600` |
+| `[[oidc.clients]]` | 第一方客户端：`id` / `name` / `redirect_uris`；`secret` 可选（public 客户端不填，强制 PKCE） |
 
-### 环境文件
+几点约束：
 
-支持多环境配置：
+- 提供者只接受 loopback 的 `http` issuer；默认本地 issuer 为 `http://localhost:5234/api/oauth`；
+- 没有管理后台 UI 修改这些值——改配置文件后**重启**生效；
+- Android 模拟器必须通过 `adb reverse tcp:5234 tcp:5234` 访问该地址，`10.0.2.2` 不是合法的 local issuer。
 
-- `.env` - 所有环境的默认配置
-- `.env.local` - 本地开发配置（不提交到 Git）
-- `.env.development` - 开发环境配置
-- `.env.production` - 生产环境配置
+完整示例见仓库内 `deploy/config.toml.example`。
 
-::: tip 优先级
-`.env.local` > `.env.[mode]` > `.env`
-:::
+## 安全提醒
 
-## 数据库配置
+- `config.toml` 含 `signingKey` 等敏感信息，**绝不提交到 Git**；
+- `signingKey` 缺失或过弱时进程启动即退出（fail-closed），无默认回退；
+- 轮换 `signingKey` 会让所有会话、TOTP 密钥加密与重置链接同时失效，且**不支持热加载**——轮换后必须重启进程，使各表面一致地切换到新密钥。
 
-### 初始化数据库
+## 相关文档
 
-使用 `schema.sql` 初始化数据库结构：
-
-```bash
-npx wrangler d1 execute jcourse-db --file=schema.sql
-```
-
-### 数据库设置表
-
-`settings` 表用于存储应用配置：
-
-| key | 说明 | 默认值 |
-|-----|------|--------|
-| `show_legacy_reviews` | 是否显示历史评价数据 | `false` |
-
-通过管理 API 修改设置：
-
-```bash
-curl -X PUT \
-  -H "x-admin-secret: your-secret" \
-  -H "Content-Type: application/json" \
-  -d '{"value": "true"}' \
-  https://your-api.workers.dev/api/admin/settings/show_legacy_reviews
-```
-
-## YourTJCaptcha 配置
-
-### 获取密钥
-
-1. 访问 YourTJCaptcha 管理后台
-2. 创建新站点，获取 `sitekey` 和 `secret`
-3. 部署验证服务到 Vercel
-
-### 验证服务配置
-
-验证服务需要配置以下环境变量：
-
-| 变量名 | 说明 |
-|--------|------|
-| `CAPTCHA_SECRET` | YourTJCaptcha 密钥 |
-
-## Waline 评论配置
-
-### 部署 Waline
-
-1. Fork Waline 仓库
-2. 在 Vercel 部署
-3. 配置 Neon 数据库
-
-### Vercel 环境变量
-
-| 变量名 | 说明 |
-|--------|------|
-| `DATABASE_URL` | Neon PostgreSQL 连接字符串 |
-| `SITE_NAME` | 站点名称 |
-| `SITE_URL` | 站点 URL |
-
-### 前端集成
-
-在前端 `.env` 文件中配置 Waline 服务地址：
-
-```bash
-VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
-```
-
-Waline 客户端会从环境变量读取此地址，无需修改源代码。
-
-## 安全建议
-
-::: warning 安全提示
-- 不要将敏感信息提交到代码仓库
-- 使用强密码作为 `ADMIN_SECRET`
-- 定期轮换密钥
-- 启用 Cloudflare 的安全功能
-:::
-
-### 推荐的安全配置
-
-1. **启用 HTTPS** - Cloudflare 默认提供
-2. **配置 CORS** - 限制允许的来源域名
-3. **速率限制** - 防止 API 滥用
-4. **输入验证** - 后端验证所有输入
-
-## 下一步
-
-- [部署指南](/guide/deployment) - 生产环境部署详解
-- [环境变量](/development/env-variables) - 完整的环境变量列表
+- [部署指南](/guide/deployment)：生产环境配置与发布
+- [数据库](/development/database)：主库选型与迁移
+- [身份与 OIDC](/development/identity)：登录与会话细节

@@ -1,397 +1,58 @@
-# API 接口
+# API 契约
 
-本文档详细介绍 YourTJ 选课社区的 RESTful API 接口
+本文介绍 YourTJ Hub 的 API 契约现状：OpenAPI 3.1 受控契约、已覆盖操作、生成管线与变更纪律。
 
-## 基础信息
+## 契约中心
 
-### 请求格式
+受控契约入口是 `packages/api-contract/openapi.yaml`（**OpenAPI 3.1**），paths/ 按域拆分（如 `auth.yaml`、`auth-sessions.yaml`、`forum-topics.yaml`、`agent.yaml`）。新增覆盖时新建按域文件，而不是扩展旧文件——并行契约 PR 只会在入口与生成产物处相遇。
 
-- **Base URL**: `https://your-api.workers.dev`
-- **Content-Type**: `application/json`
-- **认证方式**: 管理 API 需要 `x-admin-secret` 请求头
+## 当前覆盖操作
 
-### 响应格式
+现状为 **Partial**。当前已覆盖：
 
-成功响应：
+- `POST /api/login`、`GET /api/login-public-key`
+- TOTP：`POST /api/auth/totp/verify`、`GET /api/user/totp/status`、`POST /api/user/totp/setup|enable|disable`
+- `POST /api/logout`、`POST /api/auth/oidc/exchange`
+- `POST /api/forum/topics/write`
+- 会话管理：`GET /api/user/sessions`、`POST /api/user/sessions/revoke|revoke-all`
+- Agent 六操作：`GET/POST /api/v1/agent/...`（me、topics、posts、search）
+- 课程只读：`GET /api/forum/courses`、`GET /api/forum/courses/{courseId}`（`security: []`）
 
-```json
-{
-  "data": [...],
-  "total": 100,
-  "page": 1,
-  "limit": 20,
-  "totalPages": 5
-}
-```
+## 响应信封
 
-错误响应：
+- **业务失败**常用 HTTP `200` + `{ "code": 1, "result": null, "messageCode": ... }`——消费端必须检查 JSON envelope，不能把每个 2xx 当应用成功；
+- 中间件失败（未认证、冻结、限流）为 HTTP `401` / `403` / `429`，同样携带失败信封；
+- 主题写入当前使用宽松的 `UpButterReq` 包装，畸形/不完整 JSON 报告为 HTTP 200 校验失败而非 400。
 
-```json
-{
-  "error": "错误信息"
-}
-```
-
-## 公开 API
-
-### 获取显示设置
-
-获取是否显示历史评价数据的设置。
-
-```http
-GET /api/settings/show_icu
-```
-
-**响应示例：**
-
-```json
-{
-  "show_icu": false
-}
-```
-
----
-
-### 获取开课单位列表
-
-获取所有开课单位（学院/部门）列表。
-
-```http
-GET /api/departments
-```
-
-**查询参数：**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| legacy | boolean | 是否获取历史数据的单位 |
-
-**响应示例：**
-
-```json
-{
-  "departments": [
-    "电子与信息工程学院",
-    "软件学院",
-    "土木工程学院"
-  ]
-}
-```
-
----
-
-### 获取课程列表
-
-分页获取课程列表，支持多种筛选条件。
-
-```http
-GET /api/courses
-```
-
-**查询参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| q | string | 否 | 搜索关键词 |
-| legacy | boolean | 否 | 是否查询历史数据 |
-| departments | string | 否 | 开课单位（逗号分隔） |
-| onlyWithReviews | boolean | 否 | 只显示有评价的课程 |
-| page | number | 否 | 页码（默认 1） |
-| limit | number | 否 | 每页数量（默认 20） |
-
-**响应示例：**
-
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "code": "CS101",
-      "name": "计算机导论",
-      "rating": 4.5,
-      "review_count": 10,
-      "is_legacy": 0,
-      "teacher_name": "张三"
-    }
-  ],
-  "total": 100,
-  "page": 1,
-  "limit": 20,
-  "totalPages": 5
-}
-```
-
----
-
-### 获取课程详情
-
-获取单个课程的详细信息及其所有评价。
-
-```http
-GET /api/course/:id
-```
-
-**路径参数：**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| id | number | 课程 ID |
-
-**响应示例：**
-
-```json
-{
-  "id": 1,
-  "code": "CS101",
-  "name": "计算机导论",
-  "credit": 3,
-  "department": "软件学院",
-  "teacher_name": "张三",
-  "review_count": 10,
-  "review_avg": 4.5,
-  "reviews": [
-    {
-      "id": 1,
-      "sqid": "Xk9m",
-      "rating": 5,
-      "comment": "很棒的课程！",
-      "semester": "2024春",
-      "reviewer_name": "匿名用户",
-      "created_at": "2024-01-15T10:30:00Z"
-    }
-  ]
-}
-```
-
----
-
-### 提交评价
-
-提交新的课程评价（需要人机验证）。
-
-```http
-POST /api/review
-```
-
-**请求体：**
-
-```json
-{
-  "course_id": 1,
-  "rating": 5,
-  "comment": "课程内容丰富，老师讲解清晰",
-  "semester": "2024春",
-  "turnstile_token": "验证token",
-  "reviewer_name": "匿名用户",
-  "reviewer_avatar": ""
-}
-```
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| course_id | number | 是 | 课程 ID |
-| rating | number | 是 | 评分（0-5） |
-| comment | string | 是 | 评价内容（Markdown） |
-| semester | string | 是 | 学期 |
-| turnstile_token | string | 是 | 人机验证 token |
-| reviewer_name | string | 否 | 评价者昵称 |
-| reviewer_avatar | string | 否 | 评价者头像 URL |
-
-**响应示例：**
-
-```json
-{
-  "success": true
-}
-```
-
-**错误响应：**
-
-```json
-{
-  "error": "人机验证无效或已过期"
-}
-```
-
----
-
-## 管理 API
-
-::: warning 认证要求
-所有管理 API 需要在请求头中携带 `x-admin-secret`。
-:::
-
-### 获取评价列表（管理）
-
-```http
-GET /api/admin/reviews
-```
-
-**请求头：**
+## 契约流水线
 
 ```
-x-admin-secret: your-admin-secret
+Go controller + route wrapper + Gin middleware（当前行为，事实源）
+   │  手动维护操作描述
+   ▼
+packages/api-contract/openapi.yaml + paths/ + components/
+   │  Redocly lint + bundle      │  openapi-typescript
+   ▼                              ▼
+packages/api-contract/fixtures/  @gooseforum/client/openapi 生成类型
+   │
+   └── 路由级 httptest 断言 ←──── CI 生成产物 no-diff 门禁
 ```
 
-**查询参数：**
+- **Go 行为是事实源**：controller、路由包装、中间件及其 httptest 覆盖定义了被文档化的行为；
+- **OpenAPI 是受控协议源**：以可评审、可消费的格式文档化每个已覆盖操作；
+- **生成 Web 类型是产物**：`@gooseforum/client` 只导出生成类型（`src/gen/`），不替代手写页面 payload 契约，也不创建请求客户端；CI 重新生成并拒绝未提交的 diff；
+- **fixtures 是代表性 wire 样本**：路由级 Go 测试跑真实 Gin 路由链，断言实际状态码、envelope、result 形态与 `Retry-After`；
+- **移动端 Dart 生成是 Planned**：`apps/mobile/core/lib/src/gen/*.dart` 目前手工维护，fixture 测试兜底其反序列化。
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| q | string | 搜索关键词（支持 sqid） |
-| page | number | 页码 |
-| limit | number | 每页数量 |
+## 变更纪律
 
----
+- 对已覆盖操作：后端行为 → `openapi.yaml` → 生成 TypeScript → fixtures / 路由级契约测试在**同一个 PR** 交付；
+- 未覆盖操作保持与消费端手工同步；`@gooseforum/client` 必须与 Go struct 保持一致；
+- 影响移动端的后端/TS 契约变更，必须同 PR 更新 Dart 镜像 + fixture 契约测试；
+- **断裂性变更对比暂不是门禁**：`dev` 基线尚无稳定操作可比对。待覆盖稳定后再建立 base-vs-head 的契约断裂门禁。
 
-### 更新评价
+## 相关文档
 
-```http
-PUT /api/admin/review/:id
-```
-
-**请求体：**
-
-```json
-{
-  "comment": "更新后的评价内容",
-  "rating": 4,
-  "reviewer_name": "新昵称",
-  "reviewer_avatar": ""
-}
-```
-
----
-
-### 切换评价显示状态
-
-```http
-POST /api/admin/review/:id/toggle
-```
-
-切换评价的 `is_hidden` 状态。
-
----
-
-### 删除评价
-
-```http
-DELETE /api/admin/review/:id
-```
-
----
-
-### 获取课程列表（管理）
-
-```http
-GET /api/admin/courses
-```
-
-**查询参数：**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| q | string | 搜索关键词 |
-| page | number | 页码 |
-| limit | number | 每页数量 |
-
----
-
-### 更新课程
-
-```http
-PUT /api/admin/course/:id
-```
-
-**请求体：**
-
-```json
-{
-  "code": "CS101",
-  "name": "计算机导论",
-  "credit": 3,
-  "department": "软件学院",
-  "teacher_name": "张三",
-  "search_keywords": "CS101 计算机导论 张三"
-}
-```
-
----
-
-### 删除课程
-
-```http
-DELETE /api/admin/course/:id
-```
-
-::: danger 危险操作
-删除课程会同时删除该课程的所有评价！
-:::
-
----
-
-### 创建课程
-
-```http
-POST /api/admin/course
-```
-
-**请求体：**
-
-```json
-{
-  "code": "CS102",
-  "name": "数据结构",
-  "credit": 4,
-  "department": "软件学院",
-  "teacher_name": "李四",
-  "search_keywords": "CS102 数据结构 李四"
-}
-```
-
----
-
-### 获取所有设置
-
-```http
-GET /api/admin/settings
-```
-
-**响应示例：**
-
-```json
-{
-  "show_legacy_reviews": "false"
-}
-```
-
----
-
-### 更新设置
-
-```http
-PUT /api/admin/settings/:key
-```
-
-**请求体：**
-
-```json
-{
-  "value": "true"
-}
-```
-
-## 错误码
-
-| HTTP 状态码 | 说明 |
-|-------------|------|
-| 200 | 成功 |
-| 400 | 请求参数错误 |
-| 401 | 未授权（管理 API） |
-| 403 | 人机验证失败 |
-| 404 | 资源不存在 |
-| 500 | 服务器内部错误 |
-
-## 下一步
-
-- [筛选逻辑](/development/filtering) - 了解筛选实现
-- [人机验证](/development/captcha) - YourTJCaptcha 集成
+- [后端（Go）](/development/backend)
+- [身份与 OIDC](/development/identity)
+- [测试策略](/development/testing)

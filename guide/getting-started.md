@@ -1,163 +1,89 @@
 # 快速开始
 
-本指南将帮助你快速搭建和运行 YourTJ 选课社区项目。
+本指南帮助你快速搭建并运行 YourTJ Hub 的本地开发环境。
 
 ## 环境要求
 
-在开始之前，请确保你的开发环境满足以下要求：
-
 | 工具 | 版本要求 | 说明 |
 |------|----------|------|
-| Node.js | >= 18.0.0 | 推荐使用 LTS 版本 |
-| npm | >= 9.0.0 | 随 Node.js 安装 |
-| Wrangler | >= 3.0.0 | Cloudflare CLI 工具 |
-| Git | >= 2.0.0 | 版本控制 |
+| Go | 1.26+ | 后端运行环境 |
+| Node.js | 24+ | 前端（Vue 3）构建与开发 |
+| pnpm | 11+ | 前端包管理器（在 `apps/gooseforum/resource/` 内运行） |
+| Docker + Compose | 最新 | 本地依赖服务（PostgreSQL、Meilisearch） |
+| Flutter SDK | 3.27+ | 移动端（可选，仅在开发移动端时需要） |
+| melos | — | 移动端工作区管理（`dart pub global activate melos`） |
 
-## 项目结构
-
-```
-YourTJCourse-Serverless/
-├── frontend/          # 前端项目
-│   ├── src/
-│   │   ├── components/  # React 组件
-│   │   ├── pages/       # 页面组件
-│   │   └── services/    # API 服务
-│   ├── public/          # 静态资源
-│   └── package.json
-│
-└── backend/           # 后端项目
-    ├── src/
-    │   ├── index.ts     # 主入口
-    │   └── sqids.ts     # ID 编码
-    ├── schema.sql       # 数据库结构
-    └── wrangler.toml    # Cloudflare 配置
-```
-
-## 克隆项目
+## 克隆仓库
 
 ```bash
-git clone https://github.com/YourTongji/YourTJCourse-Serverless.git
+git clone --branch dev https://github.com/YourTongji/YourTJ-Hub.git
+cd YourTJ-Hub
 ```
 
-## 后端部署
+默认分支为 `dev`，它也是 PR 的目标分支；`main` 是生产分支。
 
-### 1. 安装依赖
+## 安装前端依赖
 
 ```bash
-cd backend
-npm install
+cd apps/gooseforum/resource
+pnpm install --frozen-lockfile
+cd ../../..
 ```
 
-### 2. 配置 Cloudflare
+> **注意**：必须在 `apps/gooseforum/resource/` 目录内运行 pnpm。主目录（如 `~/pnpm-workspace.yaml`）的 workspace 配置可能会干扰 pnpm 的向上查找。
 
-首先登录 Cloudflare：
+## 启动本地依赖服务
 
 ```bash
-npx wrangler login
+make dev
 ```
 
-### 3. 创建 D1 数据库
+`make dev` 通过 Docker Compose 启动 PostgreSQL 与 Meilisearch 等本地依赖。如果只需要 SQLite + 无搜索的最简环境，可以跳过这一步直接启动后端。
+
+## 启动后端
 
 ```bash
-# 创建数据库
-npx wrangler d1 create jcourse-db
-
-# 初始化数据库结构
-npx wrangler d1 execute jcourse-db --file=schema.sql
+make server
 ```
 
-### 4. 配置环境变量
+后端默认监听 `http://localhost:5234`。首次启动会自动生成一个已被 Git 忽略的 `apps/gooseforum/config.toml`（由内嵌模板生成）。
 
-设置必要的密钥：
+## 启动前端开发服务器
 
 ```bash
-# 人机验证服务 URL
-npx wrangler secret put CAPTCHA_SITEVERIFY_URL
-
-# 管理后台密钥
-npx wrangler secret put ADMIN_SECRET
+make web
 ```
 
-### 5. 部署后端
+Vite 开发服务器运行在 `http://localhost:3010`，开发模式下直接请求后端 `:5234`。
+
+## 构建生产形态的单一二进制
 
 ```bash
-npx wrangler deploy
+make build
+# output: bin/yourtj-hub
 ```
 
-部署成功后，你将获得一个 Workers URL，例如：`https://jcourse-backend.your-subdomain.workers.dev`
+`make build` 先构建 Vue 前端，再把前端产物与 GoHTML 模板通过 `go:embed` 打进 Go 可执行文件。
 
-## 前端部署
-
-### 1. 安装依赖
+## 移动端（可选）
 
 ```bash
-cd frontend
-npm install
+cd apps/mobile
+melos bootstrap   # 首次或依赖变更后
+melos run analyze # 全包静态检查
+melos run test    # 全包测试
 ```
 
-### 2. 配置环境变量
-
-创建 `.env` 文件：
-
-```bash
-# API 地址（后端 Workers URL）
-VITE_API_URL=https://jcourse-backend.your-subdomain.workers.dev
-
-# YourTJ Captcha 站点密钥
-VITE_CAPTCHA_SITEKEY=your-captcha-site-key
-
-# Waline 评论服务地址
-VITE_WALINE_SERVER_URL=https://your-waline.vercel.app
-```
-
-::: tip
-国内网络环境访问需要把Workers默认域名用自定义子域替换
-:::
-
-### 3. 本地开发
-
-```bash
-npm run dev
-```
-
-访问 `http://localhost:3000` 查看效果。
-
-### 4. 构建部署
-
-```bash
-# 构建
-npm run build
-
-# 部署到 Cloudflare Pages
-npm run deploy
-```
-
-## 验证部署
-
-部署完成后，检查以下功能是否正常：
-
-- 首页课程列表加载
-- 课程搜索功能
-- 课程详情页面
-- 评价提交（需要人机验证）
-- 评论系统（Waline）
+`apps/mobile` 是一个 Melos 工作区，包含 `core` / `auth` / `ui_kit` / `forum_app` 四个包。
 
 ## 常见问题
 
-### CORS 错误
-
-确保后端 `wrangler.toml` 中配置了正确的 CORS 设置，或在代码中允许前端域名。
-
-### 数据库连接失败
-
-检查 `wrangler.toml` 中的 `database_id` 是否正确。
-
-### 人机验证失败
-
-确认 `CAPTCHA_SITEVERIFY_URL` 和 `VITE_CAPTCHA_URL` 配置正确。
+- **Go module 拉取超时**：官方代理可能超时，可切换镜像：`GOPROXY=https://goproxy.cn,direct`。
+- **pnpm `ERR_PNPM_IGNORED_BUILDS`**：esbuild 需要在 `apps/gooseforum/resource/pnpm-workspace.yaml` 的 `allowBuilds` 中放行（上游已处理 esbuild，一般无需改动）。
+- **不要提交 `config.toml`**：其中包含签名密钥和第三方服务凭据。
 
 ## 下一步
 
-- [配置说明](/guide/configuration) - 详细的配置选项
-- [部署指南](/guide/deployment) - 生产环境部署
-- [开发文档](/development/overview) - 深入了解技术实现
+- [配置说明](/guide/configuration)：了解 `config.toml` 的各配置项
+- [开发文档](/development/overview)：了解 monorepo 结构与分层
+- [部署指南](/guide/deployment)：生产环境部署

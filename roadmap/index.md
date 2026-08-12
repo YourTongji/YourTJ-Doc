@@ -18,7 +18,10 @@ const statusConfig = {
 </script>
 
 <div class="roadmap-header">
-  <h1>开发计划</h1>
+  <h1>能力状态</h1>
+  <p style="color: var(--vp-c-text-2); font-size: 0.9rem; margin-top: 0.5rem;">
+    看板内容同步自 YourTJ-Hub <code>docs/product/current-state.md</code>（<code>Current → Done</code>、<code>Partial → In Progress</code>、<code>Planned → Next Up / Backlog</code>）。实时看板见 <a href="https://github.com/YourTongji/YourTJ-Hub/projects" target="_blank" rel="noopener noreferrer">GitHub Projects</a>。
+  </p>
 </div>
 
 <div class="roadmap-wrapper">
