@@ -10,7 +10,7 @@
 | Node.js | 24+ | 前端（Vue 3）构建与开发 |
 | pnpm | 11+ | 前端包管理器（在 `apps/gooseforum/resource/` 内运行） |
 | Docker + Compose | 最新 | 本地依赖服务（PostgreSQL、Meilisearch） |
-| Flutter SDK | 3.27+ | 移动端（可选，仅在开发移动端时需要） |
+| Flutter SDK | 3.44.9（CI 锁定） | 移动端（可选，仅在开发移动端时需要）；Dart SDK 约束 `>=3.12.2 <4.0.0` |
 | melos | — | 移动端工作区管理（`dart pub global activate melos`） |
 
 ## 克隆仓库

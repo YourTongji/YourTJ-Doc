@@ -43,8 +43,8 @@
 | 事件 | 工作流 | 行为 |
 |---|---|---|
 | 合并到 `dev` | `deploy-dev.yml` | 构建单一二进制 → scp 上传 → `sync-db-from-main.sh`（dev 同步 main 的一致性数据库快照）→ `deploy.sh dev <binary> dev-<sha> 5235`，健康检查失败自动回滚 |
-| 合并到 `main` | `deploy-main.yml` | 先 `backup-db.sh main`（部署前一致快照）→ `deploy.sh main <binary> main-<sha> 5234`，失败回滚到 `prev` 镜像 tag |
-| 手动触发 | `release-to-main.yml` | 把 `dev` 合并进 `main`，按 `vX.Y.Z` 最新 tag bump `patch`/`minor`/`major`（首次发布：patch → `v0.0.1`），打 tag 并通过 PAT 推送触发 `deploy-main` |
+| `release-to-main` 发布后触发 | `deploy-main.yml` | 先 `backup-db.sh main`（部署前一致快照）→ `deploy.sh main <binary> main-<sha> 5234`，失败回滚到 `prev` 镜像 tag |
+| 手动触发 | `release-to-main.yml` | 把 `dev` 合并进 `main`，按 `vX.Y.Z` 最新 tag bump `patch`/`minor`/`major`（首次发布：patch → `v0.0.1`），打 tag 并通过 PAT 推送 `main` 与 tag，随后显式触发 `deploy-main` |
 
 为什么 dev 要同步 main 的数据库：迁移在启动时执行，dev 每次部署都会"彩排"main 下次要跑的迁移。
 

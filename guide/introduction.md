@@ -35,7 +35,8 @@ YourTJ Hub 的核心论坛直接演进自 [GooseForum](https://github.com/leanco
 | 内容治理 | `Current` | 敏感词审核、限流与验证码、审计、服务条款、数据导入导出 |
 | 移动端 | `Partial` | Flutter 客户端、共享设计语言与 OIDC 登录已实现，尚未发布到应用商店 |
 | API 契约 | `Partial` | OpenAPI 校验、TypeScript 生成与契约测试已落地，尚未覆盖全部接口 |
-| 积分 | `Planned` | 跨服务积分模型尚未提供可用实现 |
+| 积分（论坛内记账） | `Current` | 主题/回复奖励在论坛内幂等记账、回复删除原子回滚 |
+| 积分（跨平台结算） | `Planned` | `services/credit` 跨平台结算尚未上线；不可充值、不可提现、不可自由转账 |
 
 ## 架构概览
 
