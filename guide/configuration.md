@@ -1,114 +1,156 @@
-# 配置说明
+# 配置参考
 
-YourTJ Hub 的论坛使用 **`apps/gooseforum/config.toml`** 进行配置（**不是环境变量**）。首次启动时由内嵌模板生成该文件，它已被 Git 忽略，**不应提交**——其中包含签名密钥与第三方服务凭据。
+论坛使用 TOML 配置。本地开发可以直接维护 `apps/gooseforum/config.toml`；生产配置由 CI 渲染和下发。
 
-- 本地开发：`apps/gooseforum/config.toml`
-- 服务器：`main/config.toml`（生产）/ `dev/config.toml`（测试线）
+先区分这两种来源，可以避免一个常见问题：在服务器上临时改好了配置，下一次 CI 又把它覆盖回去。
 
-## `[app]` 应用设置
+## 本地配置
 
-| 键 | 说明 |
-|---|---|
-| `env` | 运行环境。`local` 绑定 `127.0.0.1`；任何非 `local` 值都会强制 session cookie 携带 `Secure`（即使 `server.url` 是 `http://…`，issue #113） |
-| `debug` | 调试模式开关 |
-| `maintenance` | 维护模式 |
-| `signingKey` | **签名密钥，必填且 fail-closed**：缺失、空白或 `REPLACE_SIGNING_KEY` 占位值都会导致启动直接退出（防止伪造密码重置令牌，issue #106） |
-| `cdn_url` | CDN 前缀（可选） |
+本地后端读取：
 
-生成签名密钥：
-
-```bash
-openssl rand -base64 32
+```text
+apps/gooseforum/config.toml
 ```
 
-## `[server]` 服务设置
+该文件包含签名密钥等敏感值，已经被 Git 忽略。
 
-| 键 | 说明 |
-|---|---|
-| `url` | 站点 URL（用于生成链接与 cookie 判定） |
-| `port` | 监听端口，默认 `5234` |
-| `accessLog` | 访问日志开关 |
-| `gzip` | gzip 压缩开关 |
-| `trusted_proxies` | 信任的反向代理地址（默认仅信任 `127.0.0.1` / `::1`） |
-
-## `[jwtopt]` 会话凭证
-
-| 键 | 说明 |
-|---|---|
-| `validTime` | JWT 会话有效时长（秒），默认 `604800`（7 天） |
-
-## `[db]` 数据库
-
-| 键 | 说明 |
-|---|---|
-| `[db.default]` | **主库**：SQLite 默认，也支持 MySQL 与 PostgreSQL（issue #11） |
-| `[db.file]` | **文件库**（附件 BLOB）：固定使用 SQLite |
-| `migration` | 启动时执行迁移（`on` / `off`），默认 `on` |
-
-切换主库到本地 PostgreSQL 示例：
+最小数据库配置：
 
 ```toml
 [db.default]
-connection = "postgres"
-url = "host=127.0.0.1 user=yourtj password=yourtj dbname=yourtj port=5432 sslmode=disable"
+connection = "sqlite"
+path = "./storage/database/sqlite.db"
+
+[db.file]
+connection = "sqlite"
+path = "./storage/database/file.db"
 ```
 
-二进制在首次启动时会对主库全部模型执行 AutoMigrate，并运行版本化数据迁移。
+需要验证 PostgreSQL 时，把 `[db.default]` 切到本地 PG；`[db.file]` 仍保持 SQLite。
 
-## `[meilisearch]` 搜索（可选）
+## 生产配置
 
-| 键 | 说明 |
-|---|---|
-| `url` | Meilisearch 地址，本地默认 `http://localhost:7700` |
-| `masterkey` | Meilisearch master key |
+生产配置来自：
 
-搜索是可选的：未配置时搜索功能整体不可用，但不影响论坛其余功能。
+- `deploy/config.toml.tmpl`
+- `deploy/instances/<env>.json`
+- GitHub Environment secrets
 
-## `[log]` 日志
+CI 渲染完整 TOML，检查占位符和实例 DSN，再原子应用到服务器。
 
-| 键 | 说明 |
-|---|---|
-| `type` / `path` / `rolling` | 日志类型、路径与轮转 |
-| `level` | `debug` / `info` / `warn` / `error` |
-| `format` | `json` / `console` |
-| `errorPath` | WARN/ERROR 独立轮转文件 |
-| `logIp` | 访问日志是否记录客户端 IP，默认关闭（隐私考量） |
-| `slowSQL` | 慢 SQL 日志 |
+修改生产配置时，非敏感值写入模板或实例 JSON；secret 写入 GitHub Environment。
 
-> 日志配置修改后需要重启进程。
+## `app` 和 `server`
 
-## `[github]` GitHub OAuth
+```toml
+[app]
+env = "production"
+maintenance = false
+signingKey = "<secret>"
 
-配置 GitHub OAuth 的 `client_id` / `client_secret`，用于 GitHub 登录。
+[server]
+url = "https://f.yourtj.de"
+port = 5234
+```
 
-## `[oidc]` 内建 OIDC Provider
+`app.signingKey` 是安全根密钥。空值、默认值和部署占位符都会让生产服务拒绝启动。
 
-论坛内建 OIDC Provider 从 `[oidc]` 段读取配置，为第一方客户端（移动端、未来的校园服务）签发标准 OIDC 令牌：
+它同时影响 JWT、会话 Cookie、TOTP 密钥、密码重置 / 激活 token 和 OIDC 的部分密钥派生。
 
-| 键 | 说明 |
-|---|---|
-| `enabled` | 是否启用；启用时在 `/api/oauth` 下挂载 OIDC 端点 |
-| `issuer` | issuer 值，默认取 `server.url` + `/api/oauth`；**必须与对外公布的 discovery 值完全一致** |
-| `signing_key_file` | RS256 签名私钥文件（也可用内联 `signing_key`；二者都为空时自动生成并持久化） |
-| `access_token_ttl` / `auth_request_ttl` / `id_token_ttl` | 各类令牌有效期（秒），默认 `3600` / `600` / `3600` |
-| `[[oidc.clients]]` | 第一方客户端：`id` / `name` / `redirect_uris`；`secret` 可选（public 客户端不填，强制 PKCE） |
+::: warning
+轮换 `app.signingKey` 必须重启进程。运行中只热改配置，会让不同组件使用不同密钥世代。
+:::
 
-几点约束：
+非 `local` 环境会强制登录 Cookie 使用 `Secure`。生产 `server.url` 应使用实际 HTTPS 地址。
 
-- 提供者只接受 loopback 的 `http` issuer；默认本地 issuer 为 `http://localhost:5234/api/oauth`；
-- 没有管理后台 UI 修改这些值——改配置文件后**重启**生效；
-- Android 模拟器必须通过 `adb reverse tcp:5234 tcp:5234` 访问该地址，`10.0.2.2` 不是合法的 local issuer。
+## 数据库
 
-完整示例见仓库内 `deploy/config.toml.example`。
+```toml
+[db]
+migration = "on"
 
-## 安全提醒
+[db.default]
+connection = "postgres"
+url = "host=postgres user=... password=... dbname=yourtj_main port=5432 sslmode=disable"
+```
 
-- `config.toml` 含 `signingKey` 等敏感信息，**绝不提交到 Git**；
-- `signingKey` 缺失或过弱时进程启动即退出（fail-closed），无默认回退；
-- 轮换 `signingKey` 会让所有会话、TOTP 密钥加密与重置链接同时失效，且**不支持热加载**——轮换后必须重启进程，使各表面一致地切换到新密钥。
+生产默认 PostgreSQL，本地 / 测试默认 SQLite。MySQL 不受支持。
 
-## 相关文档
+`migration = "off"` 表示由运维人员自行保证 schema；这时启动 gate 不等待 migration。除非有明确运维方案，不要随意关闭。
 
-- [部署指南](/guide/deployment)：生产环境配置与发布
-- [数据库](/development/database)：主库选型与迁移
-- [身份与 OIDC](/development/identity)：登录与会话细节
+## Meilisearch
+
+```toml
+[meilisearch]
+maintenance_enabled = true
+url = "http://meilisearch:7700"
+masterkey = "<secret>"
+```
+
+`maintenance_enabled` 决定当前实例是否负责共享搜索索引的维护任务。main / dev 如果指向同一套 Meili，只应让权威实例执行维护。
+
+搜索索引可以重建，数据库才是业务事实源。
+
+## OAuth 和 OIDC
+
+GitHub 和 Google 分别使用 `[github]`、`[google]`。
+
+内建 OIDC Provider 使用 `[oidc]`。生产环境需要固定 issuer，并为客户端登记精确 redirect URI；public client 使用 PKCE。
+
+OIDC 属于启动时配置。修改 issuer、客户端或关键密钥后按重启处理。
+
+## Wiki
+
+```toml
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-repo"
+schedule = "0 3 * * *"
+webhook_secret = "<secret>"
+```
+
+GitHub 是 Wiki 正文事实源。`webhook_secret` 用于验证 GitHub push webhook。
+
+## 推送
+
+Web Push 使用 `[webpush]` 的 VAPID 密钥。
+
+原生推送分为：
+
+- `[push.apns]`：iOS。
+- `[push.fcm]`：Android FCM。
+- `[push.jpush]`：Android JPush / 厂商通道。
+
+缺少完整凭据时，对应 provider 按关闭处理。dev 环境应保持真实外发通道关闭，避免把从 main 快照同步来的设备注册当成测试目标。
+
+## 我的校园
+
+`[campus]` 包含学校 OAuth 客户端、回调地址，以及凭据加密和身份 HMAC 密钥。
+
+全部留空即可关闭校园连接。这里保存的是实例级 secret；用户自己的学校 token 会另外加密存储。
+
+## 哪些设置在管理后台
+
+下面这些运行时设置不要求直接改 TOML：
+
+- SMTP。
+- S3-compatible 对象存储。
+- 站点品牌和公开页面。
+- 发帖 / 限流设置。
+- 一系统同步凭据。
+- 部分 AI 总结配置。
+
+敏感字段通过 securestore 保存，管理页面只应返回“是否已配置”，不回显原始密钥。
+
+## 修改后怎么验证
+
+| 改动 | 验证 |
+| --- | --- |
+| 端口 / DB / signingKey / OIDC | 重启，检查日志和 `/health` |
+| Meilisearch | 执行真实搜索，检查索引任务 |
+| OAuth | 完整走一次登录 / 绑定回调 |
+| Wiki | 触发同步并查看 run 记录 |
+| Push | 用真实设备测试 |
+| 对象存储 | 连接测试 + 实际上传图片 |
+| Campus | 完成学校授权并读取一项私密数据 |

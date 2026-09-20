@@ -1,89 +1,58 @@
 # 快速开始
 
-本指南帮助你快速搭建并运行 YourTJ Hub 的本地开发环境。
+打开 [f.yourtj.de](https://f.yourtj.de) 即可使用 YourTJ。
 
-## 环境要求
+公开社区、课程、Wiki 和校园地图可以直接浏览；发布、互动、私信和个人校园数据需要登录。
 
-| 工具 | 版本要求 | 说明 |
-|------|----------|------|
-| Go | 1.26+ | 后端运行环境 |
-| Node.js | 24+ | 前端（Vue 3）构建与开发 |
-| pnpm | 11+ | 前端包管理器（在 `apps/gooseforum/resource/` 内运行） |
-| Docker + Compose | 最新 | 本地依赖服务（PostgreSQL、Meilisearch） |
-| Flutter SDK | 3.44.9（CI 锁定） | 移动端（可选，仅在开发移动端时需要）；Dart SDK 约束 `>=3.12.2 <4.0.0` |
-| melos | — | 移动端工作区管理（`dart pub global activate melos`） |
+## 注册
 
-## 克隆仓库
+新账号通过注册页创建。
 
-```bash
-git clone --branch dev https://github.com/YourTongji/YourTJ-Hub.git
-cd YourTJ-Hub
-```
+站点可能要求邮箱验证。注册完成后如果能登录但不能发帖，先检查邮箱是否已经激活。
 
-默认分支为 `dev`，它也是 PR 的目标分支；`main` 是生产分支。
+GitHub 和 Google OAuth 用于登录或绑定已有 YourTJ 账号，**不会自动创建新账号**。
 
-## 安装前端依赖
+## 登录和安全设置
 
-```bash
-cd apps/gooseforum/resource
-pnpm install --frozen-lockfile
-cd ../../..
-```
+密码账号可以开启 TOTP 两步验证。
 
-> **注意**：必须在 `apps/gooseforum/resource/` 目录内运行 pnpm。主目录（如 `~/pnpm-workspace.yaml`）的 workspace 配置可能会干扰 pnpm 的向上查找。
+登录后先在账号设置中确认：
 
-## 启动本地依赖服务
+- 当前登录设备。
+- 备用恢复码是否已妥善保存。
+- 邮箱是否已验证。
+- 是否有不认识的会话。
 
-```bash
-make dev
-```
+需要撤销设备、修改邮箱或处理忘记密码时，参阅[账号与安全](/guide/account-security)。
 
-`make dev` 通过 Docker Compose 启动 PostgreSQL 与 Meilisearch 等本地依赖。如果只需要 SQLite + 无搜索的最简环境，可以跳过这一步直接启动后端。
+## 发布内容
 
-## 启动后端
+YourTJ 有三种主要内容类型：
 
-```bash
-make server
-```
+| 类型 | 适合 |
+| --- | --- |
+| 瞬间 | 图片、短内容、随手记录 |
+| 提问 | 有明确问题的讨论 |
+| 文章 | 较长的经验和整理 |
 
-后端默认监听 `http://localhost:5234`。首次启动会自动生成一个已被 Git 忽略的 `apps/gooseforum/config.toml`（由内嵌模板生成）。
+发布页支持 Markdown。快捷发布和完整编辑器都会处理未保存内容，详细行为见[社区](/guide/community)。
 
-## 启动前端开发服务器
+## 查课程和排课
 
-```bash
-make web
-```
+课程页用于搜索课程、教师和教学班，并查看课评。
 
-Vite 开发服务器运行在 `http://localhost:3010`，开发模式下直接请求后端 `:5234`。
+排课器用于维护自己的选课计划，可以保存多套方案、查看冲突和周次，并在登录后同步到账号。
 
-## 构建生产形态的单一二进制
+::: warning
+排课器只负责规划，不代表教务系统已经完成正式选课。
+:::
 
-```bash
-make build
-# output: bin/yourtj-hub
-```
+详见[课程与排课](/guide/courses)。
 
-`make build` 先构建 Vue 前端，再把前端产物与 GoHTML 模板通过 `go:embed` 打进 Go 可执行文件。
+## 使用校园服务
 
-## 移动端（可选）
+进入“我的校园”后，可以绑定自己的同济官方身份。
 
-```bash
-cd apps/mobile
-melos bootstrap   # 首次或依赖变更后
-melos run analyze # 全包静态检查
-melos run test    # 全包测试
-```
+认证会跳转到学校官方页面。YourTJ 不接收学校密码；授权完成后再回到 YourTJ 确认脱敏身份。
 
-`apps/mobile` 是一个 Melos 工作区，包含 `core` / `auth` / `ui_kit` / `forum_app` 四个包。
-
-## 常见问题
-
-- **Go module 拉取超时**：官方代理可能超时，可切换镜像：`GOPROXY=https://goproxy.cn,direct`。
-- **pnpm `ERR_PNPM_IGNORED_BUILDS`**：esbuild 需要在 `apps/gooseforum/resource/pnpm-workspace.yaml` 的 `allowBuilds` 中放行（上游已处理 esbuild，一般无需改动）。
-- **不要提交 `config.toml`**：其中包含签名密钥和第三方服务凭据。
-
-## 下一步
-
-- [配置说明](/guide/configuration)：了解 `config.toml` 的各配置项
-- [开发文档](/development/overview)：了解 monorepo 结构与分层
-- [部署指南](/guide/deployment)：生产环境部署
+绑定后可以查看当前已接入的课表、成绩、校历和学校消息。详见[我的校园](/guide/campus)。

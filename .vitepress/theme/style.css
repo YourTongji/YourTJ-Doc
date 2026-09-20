@@ -1,19 +1,44 @@
 /**
- * 使用 html:root 选择器来增加权重 (Specificity)，
- * 确保在生产构建中覆盖 VitePress 默认主题的变量
+ * YourTJ docs visual layer.
+ * The spectral ribbon intentionally mirrors YourTJ-HomePage's two-phase field:
+ * a static repeating spectrum plus a slowly travelling veil/spectrum layer.
  */
-html:root {
-  /* 辉光背景渐变色 - 蓝色和紫色交织 */
-  --vp-home-hero-image-background-image: linear-gradient(-45deg, #3b82f6 50%, #8b5cf6 50%);
-  /* 辉光模糊程度 */
-  --vp-home-hero-image-filter: blur(44px);
-
-  /* 标题文字渐变 - 蓝色到紫色 */
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #3b82f6 30%, #8b5cf6);
+:root {
+  --spectrum-a: rgb(114 240 166 / 0.9);
+  --spectrum-b: rgb(45 212 191 / 0.72);
+  --spectrum-c: rgb(96 165 250 / 0.8);
+  --spectrum-d: rgb(129 140 248 / 0.68);
+  --spectrum-e: rgb(192 132 252 / 0.62);
+  --spectrum-f: rgb(244 114 182 / 0.44);
+  --spectrum-veil: rgb(255 255 255 / 0.4);
+  --spectrum-phase-blend: soft-light;
+  --spectrum-field-opacity: 0.85;
 }
 
-/* 针对大屏幕的调整，同样增加权重 */
+html.dark {
+  --spectrum-a: rgb(61 223 130 / 0.88);
+  --spectrum-b: rgb(45 212 191 / 0.78);
+  --spectrum-c: rgb(96 165 250 / 0.8);
+  --spectrum-d: rgb(129 140 248 / 0.68);
+  --spectrum-e: rgb(167 139 250 / 0.7);
+  --spectrum-f: rgb(232 121 249 / 0.52);
+  --spectrum-veil: rgb(255 255 255 / 0.38);
+  --spectrum-phase-blend: difference;
+  --spectrum-field-opacity: 0.95;
+}
+
+/* Keep the existing home hero treatment, but align it with the site's brand hue. */
+html:root {
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, #72f0a6 35%, #60a5fa 65%);
+  --vp-home-hero-image-filter: blur(44px);
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #078644 30%, #3b82f6);
+}
+
+html.dark:root {
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #72f0a6 25%, #60a5fa 75%);
+}
+
 @media (min-width: 640px) {
   html:root {
     --vp-home-hero-image-filter: blur(56px);
@@ -23,5 +48,267 @@ html:root {
 @media (min-width: 960px) {
   html:root {
     --vp-home-hero-image-filter: blur(68px);
+  }
+}
+
+.yourtj-doc-shell {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+  background: var(--vp-c-bg);
+}
+
+.yourtj-doc-layout {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+}
+
+.yourtj-doc-layout .VPHome,
+.yourtj-doc-layout .VPDoc {
+  background: transparent;
+}
+
+/*
+ * Spectral ribbon ported from YourTJ-HomePage.
+ * The oversized top-right ellipse prevents a visible hard edge near the copy.
+ */
+.spectrum-field {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  height: min(76vh, 800px);
+  overflow: hidden;
+  opacity: var(--spectrum-field-opacity);
+  contain: strict;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(
+    128% 108% at 100% -8%,
+    #000 28%,
+    rgb(0 0 0 / 0.8) 48%,
+    rgb(0 0 0 / 0.34) 66%,
+    transparent 88%
+  );
+  mask-image: radial-gradient(
+    128% 108% at 100% -8%,
+    #000 28%,
+    rgb(0 0 0 / 0.8) 48%,
+    rgb(0 0 0 / 0.34) 66%,
+    transparent 88%
+  );
+}
+
+@media (max-width: 639px) {
+  .spectrum-field {
+    height: 54vh;
+  }
+}
+
+.spectrum-field::before,
+.spectrum-field::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+
+.spectrum-field::before {
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--spectrum-a) 0%,
+    var(--spectrum-b) 7%,
+    var(--spectrum-c) 14%,
+    var(--spectrum-d) 21%,
+    var(--spectrum-e) 28%,
+    var(--spectrum-f) 36%,
+    var(--spectrum-b) 43%,
+    var(--spectrum-a) 50%
+  );
+  background-size: 200% 100%;
+  background-position: 82% 50%;
+}
+
+.spectrum-field::after {
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--spectrum-veil) 0%,
+      var(--spectrum-veil) 22%,
+      transparent 31%,
+      transparent 38%,
+      var(--spectrum-veil) 50%
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--spectrum-a) 0%,
+      var(--spectrum-b) 7%,
+      var(--spectrum-c) 14%,
+      var(--spectrum-d) 21%,
+      var(--spectrum-e) 28%,
+      var(--spectrum-f) 36%,
+      var(--spectrum-b) 43%,
+      var(--spectrum-a) 50%
+    );
+  background-size: 200% 100%, 200% 100%;
+  background-position: 50% 50%, 50% 50%;
+  mix-blend-mode: var(--spectrum-phase-blend);
+  animation: spectrum-phase 90s linear infinite;
+  will-change: background-position;
+}
+
+@keyframes spectrum-phase {
+  from {
+    background-position: 50% 50%, 50% 50%;
+  }
+
+  to {
+    background-position: 350% 50%, 350% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spectrum-field::after {
+    animation: none;
+  }
+}
+
+/* The supplied mascot mark is square; keep every site-logo presentation square. */
+.VPNavBarTitle .logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.VPHomeHero .image-src {
+  width: min(192px, 56vw);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+/* Home feature cards: VitePress-native structure, refined from NapCatDocs. */
+.VPHomeFeatures .VPFeature {
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--vp-c-bg) 60%, transparent);
+  box-shadow:
+    0 10px 30px rgb(15 23 42 / 0.10),
+    inset 0 0 0 1px rgb(255 255 255 / 0.38);
+  backdrop-filter: blur(14px) saturate(118%);
+  -webkit-backdrop-filter: blur(14px) saturate(118%);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.dark .VPHomeFeatures .VPFeature {
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 56%, transparent);
+  box-shadow:
+    0 12px 34px rgb(0 0 0 / 0.24),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+.VPHomeFeatures .VPFeature .box {
+  min-height: 184px;
+  padding: 24px;
+}
+
+.VPHomeFeatures .VPFeature .icon {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  background-color: rgb(45 212 191 / 0.14);
+  background-image: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 0.62),
+    rgb(255 255 255 / 0.16)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.42),
+    0 6px 18px rgb(14 116 144 / 0.10);
+  font-size: 25px;
+  line-height: 1;
+}
+
+.dark .VPHomeFeatures .VPFeature .icon {
+  background-color: rgb(45 212 191 / 0.16);
+  background-image: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 0.10),
+    transparent
+  );
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.10),
+    0 7px 20px rgb(0 0 0 / 0.16);
+}
+
+.VPHomeFeatures .VPFeature .title {
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.VPHomeFeatures .VPFeature .details {
+  padding-top: 7px;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+  font-weight: 450;
+  line-height: 1.7;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .VPHomeFeatures .VPFeature:hover {
+    transform: translateY(-3px);
+    background: color-mix(in srgb, var(--vp-c-bg) 72%, transparent);
+    box-shadow:
+      0 16px 38px rgb(15 23 42 / 0.14),
+      inset 0 0 0 1px rgb(255 255 255 / 0.52);
+  }
+
+  .dark .VPHomeFeatures .VPFeature:hover {
+    background: color-mix(in srgb, var(--vp-c-bg-soft) 68%, transparent);
+    box-shadow:
+      0 16px 40px rgb(0 0 0 / 0.30),
+      inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  }
+}
+
+@media (max-width: 639px) {
+  .VPHomeFeatures .VPFeature .box {
+    min-height: auto;
+    padding: 20px;
+  }
+
+  .VPHomeFeatures .VPFeature .icon {
+    width: 46px;
+    height: 46px;
+    margin-bottom: 16px;
+    border-radius: 11px;
+    font-size: 23px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .VPHomeFeatures .VPFeature {
+    transition: none;
+  }
+
+  .VPHomeFeatures .VPFeature:hover {
+    transform: none;
+  }
+}
+
+/* NapCat/Nolebase-style highlighter sweep for <mark>, including detailed local-search excerpts. */
+@media (prefers-reduced-motion: reduce) {
+  .vp-doc mark {
+    animation: none;
+    background-position: 0 var(--vp-nolebase-mark-bg-shift, 0.4lh);
+    color: var(--vp-c-text-1);
   }
 }

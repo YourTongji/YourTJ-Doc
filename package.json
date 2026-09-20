@@ -20,5 +20,10 @@
     "documentation"
   ],
   "author": "YourTJ Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@nolebase/vitepress-plugin-enhanced-mark": "^2.18.2",
+    "@nolebase/vitepress-plugin-enhanced-readabilities": "^2.18.2",
+    "canvas-confetti": "^1.9.3"
+  }
 }

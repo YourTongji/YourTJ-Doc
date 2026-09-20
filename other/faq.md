@@ -1,49 +1,40 @@
 # 常见问题
 
-## YourTJ Hub 是什么？
+## YourTJ Hub 是官网吗？
 
-YourTJ Hub 是一个面向同济校园的社区平台，以板块化论坛为核心，希望让校园经验、问题与观点沉淀为长期有价值、可检索的信息。线上站点：[https://forum.yourtj.de](https://forum.yourtj.de)。
+不是。YourTJ Hub 由学生开发和维护，不代替同济大学官方系统。
 
-## 它和旧的选课社区是什么关系？
+## 一定要登录吗？
 
-YourTJ Hub 是新平台，核心论坛直接演进自 [GooseForum](https://github.com/leancodebox/GooseForum)，不是旧选课社区的延续。课程评价（课评）是平台中一项 **Partial** 能力：课程目录、匿名课评与审核已可用，移动端 UI 与正文检索仍在规划中。
+浏览公开社区、课程、Wiki 和校园地图通常不需要登录。发布、互动、私信和个人校园数据需要登录。
 
-## 如何注册 / 登录？
+## GitHub / Google 登录会自动注册账号吗？
 
-- 密码注册（可选邮箱验证）+ GitHub OAuth；
-- 登录后可在设置中开启 **TOTP 2FA**（10 次失败 / 15 分钟限流）；
-- 移动端通过内置 OIDC Provider（AppAuth + PKCE）完成授权码登录。
+不会。OAuth 只登录或绑定已有 YourTJ 账号。新账号仍通过注册页创建。
 
-## 会暴露我的学号 / 校园邮箱吗？
+## 为什么登录后不能发帖？
 
-不会。公开身份不暴露校园身份：统一身份是论坛的数值用户 ID（`users.id`），内置 OIDC Provider 只签发数值型 `sub`。校园身份与公开身份分离（YourTJ 原则）。
+先检查邮箱是否完成验证。账号冻结、权限不足和限流也可能阻止写操作。
 
-## 谁开发部署的？
+## 排课器是教务系统吗？
 
-同济在校（或曾在校）学生开发维护，代码与文档全部开源。社区是非官方网站，不代替任何官方系统。
+不是。排课器只用于规划方案，不代表已经完成正式选课。
 
-## 内容如何管理？
+## 课评匿名吗？
 
-内容治理遵循"可回退"原则：
+公开课评不显示作者。具备权限的管理员可以在需要处理治理问题时执行受审计的身份揭示。
 
-- 敏感词拦截或进入待审队列（管理后台批准/拒绝）；
-- 不修改正常内容、不评判内容真实性，只处理违规（广告、刷屏、人身攻击、违法违规）与事实性修正；
-- 管理员操作有审计与申诉渠道；服务条款（ToS）可在 `/terms` 查看。
+## Wiki 为什么不能站内编辑？
 
-## 哪些内容不被接受？
+Wiki 以 `YourTongji/YourTJ-Wiki` 为唯一事实源。修改、审核和历史都走 GitHub Pull Request。
 
-广告、刷屏、侵害他人、违法违规内容一律不被接受，管理员会按规则删除违规内容并可能处理账号。
+## 有移动端吗？
 
-## 积分是什么？
+仓库包含 Flutter 客户端，主要社区、课程、排课、Wiki 和校园功能已有原生页面。商店发布和部分真机能力仍需生产环境验证。
 
-积分是面向贡献的**封闭闭环虚拟权益**：主题/回复奖励在论坛内记账（`Current`），但**不可充值、不可提现、不可自由转账**。跨平台结算（services/credit）仍为 `Planned`，尚未上线。
+## 如何反馈问题？
 
-## AI 可读内容是什么？
-
-论坛提供 `/llms.txt`、`/llms-full.txt`、`/p/posts/{id}.md` 等公开文本导出，只包含已发布、正常状态的主题与回复，供 AI 工具阅读。详见[开发文档](/development/overview)。
-
-## 如何联系 / 反馈问题？
-
-- 线上论坛：[https://forum.yourtj.de](https://forum.yourtj.de)
-- GitHub Issues：[https://github.com/YourTongji/YourTJ-Hub/issues](https://github.com/YourTongji/YourTJ-Hub/issues)（含 Bug 报告与功能建议模板）
+- GitHub Issues：[YourTongji/YourTJ-Hub/issues](https://github.com/YourTongji/YourTJ-Hub/issues)
 - 邮箱：[support@yourtj.de](mailto:support@yourtj.de)
+
+提交问题时不要附带 token、Cookie、TOTP 恢复码、学号或成绩。

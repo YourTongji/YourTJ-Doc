@@ -1,87 +1,149 @@
-# 后端（Go）
+# 后端
 
-本文介绍 YourTJ Hub 后端（`apps/gooseforum`）的技术栈、分层与关键机制。
+论坛后端位于 `apps/gooseforum`，使用 Go、Gin 和 GORM。
 
-## 技术栈
+理解后端时，先记住这个分工：controller 负责 HTTP 边界，service 负责业务，models 负责数据。跨领域操作通过对方的 service 完成，避免直接跨表写 SQL。
 
-- **Go 1.26 + Gin + GORM + Cobra**
-- 前端产物通过 `go:embed` 嵌入，输出单一二进制
+## 以“发布话题”为例
 
-## CLI 子命令
+`POST /api/forum/topics/write` 会在一次请求中完成多项校验和写入。
 
-`main.go` 使用 Cobra 提供命令行入口：
+请求进入后会依次经过：
 
-| 子命令 | 用途 |
-|---|---|
-| `serve` | 启动论坛服务（默认端口 5234） |
-| `mock` | 生成模拟数据 |
-| `rebuild-search-index` | 全量重建 Meilisearch 索引 |
-| `migrate-files` | BLOB → 对象存储的游标式文件迁移 |
+1. 登录、可写账号和限流检查。
+2. honeypot / captcha / 新用户冷却等浏览器侧防滥用规则。
+3. 发帖权限、标题长度、正文长度和图片数量检查。
+4. 敏感内容策略。
+5. 新建或编辑时的业务约束。
+6. 单个数据库事务。
+7. 提交后的缓存、统计和事件处理。
 
-## 分层
+事务内会一起处理：
 
-| 目录 | 职责 |
-|---|---|
-| `app/bundles` | 工具集：连接、事件总线、jwtopt、i18n、captcha、日志、缓存等 |
-| `app/models` | GORM 模型 + `app/migration` 迁移 |
-| `app/service` | 业务逻辑：users、topics、mail、oauth、theme 等 |
-| `app/http/controllers/api` | JSON API：auth、topic、user、admin、chat、notification、file 等 |
-| `app/http/controllers/forum` | 页面渲染（GoHTML 三模式：payload + render + SEO） |
-| `app/http/middleware` | JWT 认证、访问日志、维护模式、限流等 |
+- topic 主记录。
+- 首帖。
+- 首帖 revision。
+- 分类索引。
+- 搜索同步任务。
 
-## 关键机制
+任何一步失败，整个事务回滚。
 
-### 会话与认证
+对应入口在 `apps/gooseforum/app/http/routes/route4api.go`，核心写入逻辑位于 `apps/gooseforum/app/http/controllers/api/topicController.go`。搜索任务的事务边界在 `apps/gooseforum/app/service/searchservice/indexservice.go`。
 
-- JWT 会话凭证（HS256、自签、7 天 TTL、携带 `jti`），仅作**会话凭证**而非身份真相；
-- 会话由 `jti` + `user_sessions` 支撑，可逐条撤销；`TokenVersion` 作为全局失效兜底；
-- 登录枚举抵抗：登录错误不区分"用户不存在 / 密码错误"，未知账号也执行同成本的 PBKDF2 验证。
+如果把“创建首帖”“写分类”“同步搜索”拆成互不关联的 controller 操作，用户就可能得到半个成功结果；当前事务边界正是为了避免这种状态。
 
-### 限流（滥用防护）
+## Controller 和 Service 的边界
 
-- **每动作**固定窗口限流（IP + user），覆盖注册/登录/找回密码/改密/TOTP/发帖/评论/上传/交互/llms/mcp/课评等 30+ 动作；
-- 触发返回 `429 + Retry-After`；
-- 另有验证码开关、蜜罐（honeypot）、提交时间检测、新用户发帖阈值；全部限流与开关可在管理后台热调。
+后端主要目录：
 
-### 任务队列与后台任务
-
-- `task_queue` 行携带 `type` 字符串，worker 按 **type 前缀**轮询，任务类型互不泄漏：
-  - `email.*`（激活 / 重置密码）
-  - `export`（数据导出）
-  - `file-migrate`（BLOB → 对象存储迁移）
-- 导出与迁移任务把进度写入 `task_json`（processed/total/errorCount、游标 lastId），管理后台可渲染实时进度，重启后可续跑；
-- 导出文件落在 `data/export/`，保留 7 天（每日 cron 清理）。
-
-### Agent（机器人）
-
-- Agent 是 `users` 行 + `agents` 行（同一 user id 主键关联），`users.actor_type` 区分人类（0）/ 机器人（1）；
-- 每个 Agent 有唯一 bearer token（`agt_…`），创建/轮换时仅展示一次；数据库只存 **SHA-256 哈希 + 8 字符非机密前缀**；
-- 禁用即**吊销**凭据（清空哈希，泄出的 token 永远无法再通过校验），重新启用必须先轮换；
-- 机器人行被人形认证路径（密码 / OAuth / OIDC / 会话中间件）一律拒绝；
-- Agent 公开 API：`/api/v1/agent/*` 六操作（me、主题列表/创建、帖子列表/创建、搜索），已由 OpenAPI 契约覆盖。
-
-### 审计与治理
-
-- 敏感词拦截或进入待审队列（ProcessStatus=2，管理后台批准/拒绝）；
-- 保留/禁用用户名治理，禁用用户名自动冻结既有账号；
-- 审核操作有审计日志；服务条款（ToS）可在管理后台编辑并在 `/terms` 渲染。
-
-## 一致性约束
-
-- 关键副作用（通知、索引同步、积分分发）幂等、可重试、可观测；
-- 业务生命周期用显式状态机（如主题 draft / published / archived / deleted），不用布尔组合；
-- 迁移在启动时执行，失败即中止启动（fail-fast）。
-
-## 验证
-
-```bash
-cd apps/gooseforum
-go vet ./... && go test ./...
+```text
+app/
+  bundles/             基础设施
+  models/              GORM 模型与数据访问
+  migration/           schema / 数据迁移
+  service/             业务逻辑
+  http/controllers/    HTTP 边界
+  http/middleware/     认证、CSRF、限流、安全头
+  console/             CLI
 ```
 
-## 相关文档
+适合放在 controller 的逻辑：
 
-- [概述与架构](/development/overview)
-- [身份与 OIDC](/development/identity)
-- [数据库](/development/database)
-- [测试策略](/development/testing)
+- 解析 URI / query / body。
+- 判断 HTTP status。
+- 设置 `Retry-After`、`Cache-Control` 等响应头。
+- 调用领域 service。
+
+适合放在 service 的逻辑：
+
+- 一组业务规则。
+- 多表事务。
+- 跨 controller 复用的流程。
+- 对外部服务的有界调用。
+- 可重试任务的处理。
+
+如果同一段规则已经被 Web、Agent 或后台任务复用，它通常就不该继续留在某个 controller 里。
+
+## 请求取消要能向下传
+
+请求范围内的数据库、HTTP 和 LLM 调用应继承请求的 `context.Context`。
+
+例如课程 AI 总结在 HTTP 接口上仍是同步返回，但模型调用可以被取消，并有最大耗时。客户端断开后，应取消后续模型调用，避免继续占用模型额度。
+
+事务提交后的副作用属于另一类生命周期。通知、搜索投影等工作使用明确的 detached context 或后台 worker，不继续依附已经结束的浏览器请求。
+
+可以把两类工作简单区分为：
+
+| 工作 | Context |
+| --- | --- |
+| 为这次请求生成响应所必需 | request context |
+| 数据提交后仍应完成 | worker / detached context |
+
+## 启动 gate
+
+`go run . serve` 启动后，HTTP listener 可以先绑定端口，但业务并不会立即开放。
+
+默认开启 migration 时：
+
+```text
+进程启动
+  ↓
+HTTP listener 已绑定
+  ↓
+schema + versioned migrations
+  ↓
+成功：启动 worker / cron / OAuth / Wiki 等
+  ↓
+打开 startup gate
+```
+
+gate 打开前，所有请求，包括 `GET /health`，都会返回：
+
+```http
+503 Service Unavailable
+Retry-After: 5
+```
+
+硬迁移失败会让进程退出，避免带着半套 schema 接收业务请求。
+
+## 不同认证入口保持独立边界
+
+不同客户端使用不同凭据：
+
+| 客户端 | 凭据 |
+| --- | --- |
+| Web | HttpOnly `access_token` Cookie |
+| Flutter | 论坛 JWT Bearer |
+| Agent | `agt_` Bearer token |
+
+Web 写请求还需要 CSRF。Agent 则有独立 actor 类型和权限边界。
+
+不要在业务 controller 中实现“Cookie 不行就再试 JWT、再试 Agent token”的 fallback。路由组应先决定允许哪种身份，再进入业务逻辑。
+
+## 后台任务
+
+需要重试、恢复或观察状态的副作用，优先进入任务模型。
+
+典型例子是搜索：
+
+1. 业务事务里写入 `task_queue`。
+2. worker 领取任务。
+3. worker 读取最新数据库状态。
+4. 写入或删除 Meilisearch 文档。
+5. 失败则走重试和 stale lease 恢复。
+
+这让业务事实和外部投影之间有一个明确的恢复点。
+
+## 修改后端时
+
+推荐顺序：
+
+1. 先写清行为、权限和失败语义。
+2. 如果 wire shape 变化，更新 OpenAPI。
+3. 如果存储变化，添加 migration。
+4. 在 owner service 实现规则。
+5. controller 只负责接线。
+6. 补最小回归测试。
+7. 按改动范围运行验证。
+
+涉及模型或 migration 时，必须补真实 PostgreSQL 检查，见[数据库](/development/database)。

@@ -1,73 +1,189 @@
-# 贡献者
+---
+lastUpdated: false
+---
 
-感谢你们的贡献！🎉
+# YourTJ Hub 贡献者
+
+<p class="contributors-thanks">
+  感谢所有参与 YourTJ Hub 开发与维护的贡献者！
+  <button
+    class="contributors-celebration"
+    type="button"
+    aria-label="播放庆祝彩纸特效"
+    title="🎉"
+    @click="burstConfetti"
+  >🎉</button>
+</p>
 
 <script setup>
+import confetti from 'canvas-confetti'
 import { ref, onMounted } from 'vue'
 
-const contributors = ref([])
-const loading = ref(true)
-const loadError = ref(false)
-
-// 静态回退数据（当 API 无法访问时使用）
 const fallbackContributors = [
   {
-    id: 1,
-    login: 'WALKERKILLER',
-    avatar_url: 'https://avatars.githubusercontent.com/u/62551949',
-    html_url: 'https://github.com/WALKERKILLER',
-    contributions: '-'
+    "id": 46484956,
+    "login": "yzxoi",
+    "avatar_url": "https://avatars.githubusercontent.com/u/46484956?v=4",
+    "html_url": "https://github.com/yzxoi",
+    "contributions": 741
+  },
+  {
+    "id": 189623296,
+    "login": "WALKERKILLER",
+    "avatar_url": "https://avatars.githubusercontent.com/u/189623296?v=4",
+    "html_url": "https://github.com/WALKERKILLER",
+    "contributions": 194
+  },
+  {
+    "id": 67222274,
+    "login": "HalfAnElephant",
+    "avatar_url": "https://avatars.githubusercontent.com/u/67222274?v=4",
+    "html_url": "https://github.com/HalfAnElephant",
+    "contributions": 145
+  },
+  {
+    "id": 119778255,
+    "login": "oierxjn",
+    "avatar_url": "https://avatars.githubusercontent.com/u/119778255?v=4",
+    "html_url": "https://github.com/oierxjn",
+    "contributions": 106
+  },
+  {
+    "id": 49699333,
+    "login": "dependabot[bot]",
+    "avatar_url": "https://avatars.githubusercontent.com/in/29110?v=4",
+    "html_url": "https://github.com/apps/dependabot",
+    "contributions": 24
+  },
+  {
+    "id": 180716751,
+    "login": "Pengyiyan0411",
+    "avatar_url": "https://avatars.githubusercontent.com/u/180716751?v=4",
+    "html_url": "https://github.com/Pengyiyan0411",
+    "contributions": 13
+  },
+  {
+    "id": 89736158,
+    "login": "Ricepies",
+    "avatar_url": "https://avatars.githubusercontent.com/u/89736158?v=4",
+    "html_url": "https://github.com/Ricepies",
+    "contributions": 11
+  },
+  {
+    "id": 182899058,
+    "login": "wendaining",
+    "avatar_url": "https://avatars.githubusercontent.com/u/182899058?v=4",
+    "html_url": "https://github.com/wendaining",
+    "contributions": 10
+  },
+  {
+    "id": 299065080,
+    "login": "synergy-agent[bot]",
+    "avatar_url": "https://avatars.githubusercontent.com/in/4198809?v=4",
+    "html_url": "https://github.com/apps/synergy-agent",
+    "contributions": 6
+  },
+  {
+    "id": 299070056,
+    "login": "synergy-agent",
+    "avatar_url": "https://avatars.githubusercontent.com/u/299070056?v=4",
+    "html_url": "https://github.com/synergy-agent",
+    "contributions": 5
+  },
+  {
+    "id": 220479871,
+    "login": "pyz2190",
+    "avatar_url": "https://avatars.githubusercontent.com/u/220479871?v=4",
+    "html_url": "https://github.com/pyz2190",
+    "contributions": 5
+  },
+  {
+    "id": 201120162,
+    "login": "TTAWDTT",
+    "avatar_url": "https://avatars.githubusercontent.com/u/201120162?v=4",
+    "html_url": "https://github.com/TTAWDTT",
+    "contributions": 3
+  },
+  {
+    "id": 65916846,
+    "login": "actions-user",
+    "avatar_url": "https://avatars.githubusercontent.com/u/65916846?v=4",
+    "html_url": "https://github.com/actions-user",
+    "contributions": 2
+  },
+  {
+    "id": 41898282,
+    "login": "github-actions[bot]",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "html_url": "https://github.com/apps/github-actions",
+    "contributions": 2
+  },
+  {
+    "id": 156947530,
+    "login": "TrueEway",
+    "avatar_url": "https://avatars.githubusercontent.com/u/156947530?v=4",
+    "html_url": "https://github.com/TrueEway",
+    "contributions": 1
   }
 ]
 
-// 使用图片代理加速国内访问
-const getProxiedAvatar = (url) => {
-  if (!url) return ''
-  // wsrv.nl 是一个免费的图片代理服务，国内访问较快
-  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=128&h=128`
+// 先渲染构建时清单，浏览器加载后再尝试更新 GitHub 实时数据。
+const contributors = ref(fallbackContributors)
+const live = ref(false)
+const burstConfetti = () => {
+  confetti({
+    particleCount: 100,
+    spread: 170,
+    origin: { y: 0.6 },
+    disableForReducedMotion: true
+  })
 }
 
-// 图片加载失败时的默认头像
-const handleImageError = (e) => {
-  e.target.src = 'data:image/svg+xml,' + encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-      <circle cx="32" cy="32" r="32" fill="#e2e8f0"/>
-      <circle cx="32" cy="24" r="12" fill="#94a3b8"/>
-      <path d="M8 56c0-13.255 10.745-24 24-24s24 10.745 24 24" fill="#94a3b8"/>
-    </svg>
-  `)
+const fallbackAvatar = `data:image/svg+xml,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <circle cx="32" cy="32" r="32" fill="#e2e8f0"/>
+    <circle cx="32" cy="24" r="12" fill="#94a3b8"/>
+    <path d="M8 56c0-13.255 10.745-24 24-24s24 10.745 24 24" fill="#94a3b8"/>
+  </svg>
+`)}`
+
+const handleImageError = (event) => {
+  event.target.src = fallbackAvatar
 }
 
 onMounted(async () => {
+  burstConfetti()
+
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 5000) // 5秒超时
+  const timeout = setTimeout(() => controller.abort(), 5000)
 
   try {
     const response = await fetch(
-      'https://api.github.com/repos/YourTongji/YourTJ-Hub/contributors',
+      'https://api.github.com/repos/YourTongji/YourTJ-Hub/contributors?per_page=100',
       { signal: controller.signal }
     )
-    clearTimeout(timeoutId)
-
-    if (!response.ok) throw new Error('API request failed')
+    if (!response.ok) return
 
     const data = await response.json()
     if (Array.isArray(data) && data.length > 0) {
       contributors.value = data
-    } else {
-      throw new Error('Invalid data')
+      live.value = true
     }
-  } catch (error) {
-    console.warn('Failed to fetch contributors, using fallback:', error.message)
-    contributors.value = fallbackContributors
-    loadError.value = true
+  } catch (_) {
+    // 保留构建时清单。
   } finally {
-    loading.value = false
+    clearTimeout(timeout)
   }
 })
 </script>
 
-<div class="contributors-grid" v-if="!loading">
+<div class="contributors-meta">
+  <span>{{ contributors.length }} 位贡献者</span>
+  <span v-if="live">· GitHub 数据已刷新</span>
+  <span v-else>· 使用构建时缓存</span>
+</div>
+
+<div class="contributors-grid">
   <a
     v-for="contributor in contributors"
     :key="contributor.id"
@@ -77,7 +193,7 @@ onMounted(async () => {
     class="contributor-card"
   >
     <img
-      :src="getProxiedAvatar(contributor.avatar_url)"
+      :src="contributor.avatar_url"
       :alt="contributor.login"
       class="contributor-avatar"
       @error="handleImageError"
@@ -88,89 +204,102 @@ onMounted(async () => {
   </a>
 </div>
 
-<div v-else class="loading">
-  <span class="loading-spinner"></span>
-  加载中...
-</div>
-
-<div v-if="loadError" class="load-error-hint">
-  <small>（数据来自缓存，可能不是最新）</small>
-</div>
-
 <style>
+.contributors-thanks {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.contributors-celebration {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -5px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.contributors-celebration:hover {
+  background: var(--vp-c-bg-soft);
+}
+
+.contributors-celebration:active {
+  transform: scale(0.96);
+}
+
+.contributors-celebration:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 2px;
+}
+
+.contributors-meta {
+  margin: 1rem 0 0;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+}
+
 .contributors-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1.5rem;
+  gap: 16px;
+  margin-top: 20px;
 }
 
 .contributor-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1rem;
+  padding: 16px 12px;
+  border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
   text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
 .contributor-card:hover {
-  transform: translateY(-4px) scale(1.02);
-  border-color: var(--vp-c-brand);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: var(--vp-c-brand-1);
+  transform: translateY(-2px);
 }
 
 .contributor-avatar {
   width: 64px;
   height: 64px;
+  margin-bottom: 10px;
   border-radius: 50%;
-  margin-bottom: 0.75rem;
-  border: 2px solid var(--vp-c-divider);
-  background: var(--vp-c-bg-soft);
+  background: var(--vp-c-bg-alt);
 }
 
 .contributor-name {
-  font-weight: 600;
+  max-width: 100%;
   color: var(--vp-c-text-1);
-  font-size: 0.9rem;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
   text-align: center;
-  word-break: break-all;
 }
 
 .contributor-commits {
-  font-size: 0.75rem;
+  margin-top: 2px;
   color: var(--vp-c-text-3);
-  margin-top: 0.25rem;
+  font-size: 12px;
 }
 
-.loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 2rem;
-  color: var(--vp-c-text-2);
+@media (prefers-reduced-motion: reduce) {
+  .contributor-card,
+  .contributors-celebration {
+    transition: none;
+  }
 }
 
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--vp-c-divider);
-  border-top-color: var(--vp-c-brand);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.load-error-hint {
-  text-align: center;
-  color: var(--vp-c-text-3);
-  margin-top: 0.5rem;
-}
 </style>

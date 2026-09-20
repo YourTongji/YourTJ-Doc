@@ -1,76 +1,122 @@
-# 开发概述与架构
+# 架构
 
-本文介绍 YourTJ Hub 的系统形态、monorepo 结构、分层与领域边界规则。完整规格见仓库内 `docs/architecture/system-overview.md`。
+YourTJ-Hub 是一个 monorepo。论坛、课程、Wiki、校园服务和移动端共享同一套账号与 API；生产环境中的论坛仍然是一个 Go 可执行文件。
 
-## 系统形态
+理解仓库时，先跟一条真实请求走一遍，比先记目录更容易。
+
+## 一次发帖会经过什么
+
+以 Web 端发布一个普通话题为例：
 
 ```mermaid
 flowchart LR
-    Browser["浏览器"] --> Hub["YourTJ Hub 单一二进制<br/>Go · Gin · Vue 3 · GoHTML"]
-    Mobile["Flutter 客户端<br/>Partial"] -->|JSON API| Hub
-    Hub -->|标准 OIDC Provider<br/>/api/oauth| Clients["移动端与校园服务"]
-    Hub --> DB["SQLite / MySQL / PostgreSQL"]
-    Hub --> Search["Meilisearch<br/>可选、事件驱动索引"]
+  A["Vue 发布页"] --> B["POST /api/forum/topics/write"]
+  B --> C["认证 / CSRF / 写权限 / 限流"]
+  C --> D["WriteTopic"]
+  D --> E["内容、权限、审核规则校验"]
+  E --> F["数据库事务"]
+  F --> G["topic + 首帖 + 分类索引"]
+  F --> H["搜索同步任务"]
+  G --> I["提交"]
+  H --> I
+  I --> J["缓存失效 / 统计 / 事件通知"]
+  H --> K["后台 worker"]
+  K --> L["Meilisearch"]
 ```
 
-- **单一二进制**：Vue 构建产物（`resource/static/dist`）与 GoHTML 模板通过 `go:embed` 全部嵌入 Go 可执行文件。开发时 Vite（`:3010`）直连后端，生产只有一个文件。无 nginx/CDN 拆分。
-- 依赖服务（Meilisearch、PostgreSQL 等）由 Docker Compose 编排；`services/` 只存放部署配置，不携带第三方源码。
+这里有两个重要边界。
 
-## Monorepo 结构
+第一，话题、首帖、分类关系和搜索任务在同一个数据库事务里写入。中间任何一步失败都会回滚，不会留下“有话题但没有首帖”或“数据库成功、搜索任务丢了”的半成品。
+
+第二，事务提交后才处理缓存、通知和搜索投影。数据库是业务事实源；worker 会重新读取已经提交的状态，再决定新增、更新还是删除 Meilisearch 文档。
+
+对应实现可以从 `POST /api/forum/topics/write` 的路由进入，继续看 `WriteTopic` 和 `searchservice.EnqueueTopicSearchTask`。
+
+## 运行时由哪些部分组成
+
+| 部分 | 作用 | 事实源 |
+| --- | --- | --- |
+| `apps/gooseforum` | Web 页面、JSON API、后台任务、CLI | PostgreSQL / SQLite |
+| `apps/mobile` | Flutter 客户端 | 论坛 API |
+| `apps/status` | 独立状态站 | Uptime Kuma、Komari、Umami 快照 |
+| `packages/api-contract` | OpenAPI 与生成类型 | OpenAPI 3.1 |
+| Meilisearch | 主题、用户、课程、Wiki 搜索 | 可重建投影 |
+| `YourTongji/YourTJ-Wiki` | Wiki 正文和历史 | GitHub 仓库 |
+
+系统中的数据需要区分业务事实和可重建投影。搜索索引、缓存、统计等可以重建；Wiki 正文以 GitHub 为准，论坛只保存阅读投影。
+
+## 为什么论坛坚持单一二进制
+
+开发时，Vue 由 Vite 在 `3010` 端口运行，Go 后端监听 `5234`。这只是为了热更新。
+
+生产构建时：
+
+1. Vue 输出到 `resource/static/dist`。
+2. GoHTML 模板和静态资源由 `go:embed` 打入后端。
+3. 最终只部署 `bin/yourtj-hub` 对应的容器进程。
+
+生产环境只保留 Go 论坛进程，反向代理把论坛流量交给该进程。
+
+独立的 `apps/status` 是例外。状态站故意与论坛分开部署，这样论坛数据库或应用进程故障时，状态页仍然有机会工作。
+
+## 后端分层怎么用
+
+| 层 | 负责什么 | 边界 |
+| --- | --- | --- |
+| `http/controllers` | 解析 HTTP、返回状态码和响应 | 堆复杂业务规则 |
+| `service` | 业务规则、事务编排、跨模型操作 | 直接承担页面展示 |
+| `models` | GORM 模型和数据访问 | 跨领域写业务逻辑 |
+| `migration` | schema 与版本化数据迁移 | 在请求时临时修表 |
+| `middleware` | 身份、CSRF、限流、安全头、启动 gate | 偷偷改变业务数据 |
+| `console` | serve、migrate、重建索引等 CLI | 复制一套服务逻辑 |
+
+跨领域调用通过对方公开的 service 完成。例如课程逻辑需要更新搜索时，调用搜索域 service；课程代码不直接写 Meilisearch 内部状态。
+
+## 数据一致性怎么处理
+
+YourTJ 当前主要依赖“主事务 + 本地任务表”的方式处理异步副作用。
 
 ```text
-apps/
-  gooseforum/       Go + Vue 论坛（核心）
-  mobile/           Flutter / Melos 移动端工作区
-packages/
-  api-contract/     OpenAPI 契约、fixtures 与生成脚本
-services/           Meilisearch、积分等服务配置
-deploy/             容器、环境与发布脚本
-docs/               产品、架构、开发和运维文档
+业务事务
+  ├─ 写业务数据
+  └─ 写 task_queue
+        ↓ commit
+后台 worker 领取任务
+        ↓
+读取最新业务状态
+        ↓
+更新 Meilisearch / 统计等投影
 ```
 
-## 分层（apps/gooseforum）
+这比“事务提交后直接起一个 goroutine”多了一层记录，但换来三个能力：
 
-| 目录 | 职责 |
-|---|---|
-| `app/console` | Cobra CLI（`serve` / `mock` / `rebuild-search-index` / `migrate-files` …） |
-| `app/bundles` | 工具集（connect / eventbus / jwtopt / i18n / captcha / logging / cache …） |
-| `app/models` | GORM 模型 + 迁移（`app/migration`） |
-| `app/service` | 业务逻辑（users / topics / mail / oauth / theme …） |
-| `app/http/controllers/api` | JSON API（auth / topic / user / admin / chat / notification / file …） |
-| `app/http/controllers/forum` | 页面渲染（GoHTML 三模式：payload + render + SEO） |
-| `app/http/middleware` | JWT 认证、访问日志、维护模式、限流（每动作，IP+user，429 + Retry-After）… |
-| `resource/` | Vue 3 前端（站点 / 管理后台双入口）+ 模板（gohtml）+ 静态资源 |
+- 进程重启后任务仍然存在。
+- 重试不会依赖原请求还活着。
+- 投影失败不会回滚已经成立的业务事实。
 
-## 领域边界规则
+搜索同步是这套模式最典型的例子，详见[搜索](/development/search)。
 
-- 业务逻辑在 `service`，数据访问在 `models` / repository 层，HTTP 在 `http/controllers`；
-- 跨域访问（如 论坛→通知）走**属主公开的服务 API**，禁止跨表裸 SQL；
-- 前端输出只经由 `resource/static/dist`（go:embed）；对已由 OpenAPI 覆盖的操作，消费生成类型而非手写重复 DTO，未覆盖的接口契约手工维护；
-- 上游同步：`git merge` 上游 main，冲突按"我们的改动优先"解决并记录。
+## 身份边界
 
-## 一致性原则
+YourTJ 的内部身份始终是数值 `users.id`。
 
-- 选定的数据库是**业务事实源**；搜索、缓存、计数器、热榜、订阅流都是**可重建投影**；
-- 关键副作用（通知、索引同步、积分分发）必须**幂等、可重试、可观测**，不允许无人监督的 fire-and-forget；
-- 对已由 OpenAPI 覆盖的操作，契约变更在同一个 PR 内落地：Go 行为 → `openapi.yaml` → 生成 TypeScript → fixture 测试。
+不同客户端只是取得会话的方式不同：
 
-## 关键数据流
+- Web：HttpOnly Cookie。
+- Flutter：OIDC Authorization Code + PKCE，随后换取论坛 JWT。
+- Agent：独立 `agt_` token。
+- 学校身份：只作为“我的校园”的私密绑定，不参与论坛用户主键。
 
-- **Auth**：Web 走密码（可选论坛侧 TOTP 2FA）/ GitHub OAuth / 内建 OIDC Provider（授权码 + PKCE S256，数值 `sub` = `users.id`）；移动端经 `POST /api/auth/oidc/exchange` 换取论坛 JWT。会话由 `jti` + `user_sessions` 支撑，可逐条撤销。
-- **Search**：Meilisearch 可选启用；主题/用户/板块事件驱动索引同步；索引可重建（`rebuild-search-index` CLI）。不可用时整页降级，单索引失败经 `failedScopes` 部分降级。
-- **Points**：积分（credit）为 OIDC 客户端 + 独立账本，论坛作为商户调用分发 API（见 `docs/product/credit-and-escrow.md`）。
+详见[身份与 OIDC](/development/identity)。
 
-## 能力状态总表
+## 接下来读什么
 
-完整矩阵见[首页能力状态](/guide/introduction#能力状态)与[路线图](/roadmap/)。**正确性优先**基线：
+如果你准备改代码，先完成[本地开发环境](/development/local-development)。
 
-1. 决定内建 OIDC / GitHub OAuth 登录路径的 MFA 策略（论坛 TOTP 复用是 `Decision needed`）；
-2. 在大规模 API 重构前扩展 OpenAPI 与生成客户端覆盖，避免未覆盖路由成为新的契约漂移来源。
+然后按问题进入对应页面：
 
-## 相关文档
-
-- [后端（Go）](/development/backend)
-- [前端（Vue 3）](/development/frontend)
-- [数据库](/development/database)
-- [API 契约](/development/api)
+- HTTP 和业务层：[后端](/development/backend)
+- 页面与浏览器状态：[前端](/development/frontend)
+- schema / migration：[数据库](/development/database)
+- wire contract：[API 契约](/development/api)
+- 课程同步和排课：[课程与排课](/development/courses)

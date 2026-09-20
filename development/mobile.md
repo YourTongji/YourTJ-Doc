@@ -1,65 +1,112 @@
 # 移动端
 
-本文介绍 YourTJ Hub 的 Flutter 移动端（`apps/mobile`）。状态为 **Partial**，尚未发布到应用商店。
+Flutter 客户端位于 `apps/mobile`，使用 Melos 管理 workspace。
 
-## 工作区结构
+首页、话题、发布、课程、排课、Wiki 和“我的校园”等日常路径使用原生 Flutter 页面。管理工作区和部分认证交接使用受控浏览器页面。
 
-`apps/mobile` 是一个 **Melos** 工作区，包含四个包：
+## Workspace
 
-| 包 | 职责 |
-|---|---|
-| `core` | 契约 / API 客户端 / Markdown 转换 |
-| `auth` | 登录 / TOTP / OIDC / token 存储 |
-| `ui_kit` | 设计令牌 + `Gf*` 组件（映射到钉死的 TDesign v1 alpha） |
-| `forum_app` | 路由 / 页面 / 状态 |
+| Package | 负责什么 |
+| --- | --- |
+| `core` | API、模型、Markdown、契约镜像 |
+| `auth` | 密码 / OIDC、令牌存储、会话 |
+| `ui_kit` | YourTJ 设计 token 和组件 |
+| `forum_app` | 页面、路由、业务状态和平台集成 |
 
-脚本（`analyze` / `test` / `gen`）声明在 `apps/mobile/pubspec.yaml` 的 `melos:` 键下。
-
-## 已实现能力
-
-- **持久四底部导航 shell**：首页 / 搜索 / 消息 / 我的，按分支保留状态 + 全局发布按钮；
-- 与 Web 对齐的列表 / 卡片主题流；重构的主题详情页与个人主页；
-- **全局 Markdown 发布编辑器**：窄屏编辑/预览切换，宽屏双栏；格式化/图片工具栏；草稿与编辑预填；回复编辑器带图片动作；
-- 结构化骨架屏加载；统一设置 / 登录 / 通知 / 草稿入口；
-- **OIDC exchange 登录**（dot-grid 认证卡片）。
-
-## 登录流程
-
-AppAuth + PKCE → 内置 OIDC Provider 授权页 → 回调授权码 → `POST /api/auth/oidc/exchange` → 论坛 JWT。
-
-- 论坛 JWT 存 Keychain/Keystore（`flutter_secure_storage`）；OIDC 令牌服务端校验、不持久化；
-- 连后端：iOS 模拟器直接用 `http://localhost:5234`；Android 普通 API 开发可用 `http://10.0.2.2:5234`，但 **OIDC 必须用 `adb reverse tcp:5234 tcp:5234` 让 issuer 是合法的 loopback URL**（`10.0.2.2` 不是合法 local issuer，见 `apps/mobile/scripts/oidc_e2e.sh`）；
-- 真机用局域网 IP（移动端落地时通过 dart-define 注入 baseUrl）。
-
-## 设计令牌同步
-
-- `ui_kit/lib/src/theme/tokens.json` 是 Web 设计语言 `resource/src/styles/tokens.css` 的**派生真相源**；
-- **改 `tokens.css` 必须同 commit 更新 `tokens.json`**（契约式纪律）。
-
-## 契约镜像
-
-- 移动端契约镜像位于 `core/lib/src/gen/*.dart`（Dart 代码生成目前为 **Planned**，手工维护）；
-- 共享 OpenAPI fixtures 兜底运行时反序列化测试。
-
-## 本地验证
+初始化：
 
 ```bash
 cd apps/mobile
-melos bootstrap          # 首次或依赖变更后
-melos run analyze        # 全包静态检查
-melos run test           # 全包测试
+melos bootstrap
+melos run analyze
+melos run test
 ```
 
-CI：`ci-mobile`（非必选检查，按路径过滤）。
+## 一次登录怎么完成
 
-## 当前缺口
+App 不直接收集 GitHub / Google 密码，也不把 OIDC token 当成长期论坛会话凭据。
 
-- 尚未上架应用商店；
-- 推送通知、自定义主题同步、ja/it 语言包；
-- Dart 代码生成、课程 UI 与课内搜索。
+```mermaid
+flowchart LR
+  A["Flutter"] --> B["系统浏览器 / AppAuth"]
+  B --> C["YourTJ OIDC + PKCE"]
+  C --> D["authorization code"]
+  D --> E["/api/auth/oidc/exchange"]
+  E --> F["论坛 JWT"]
+  F --> G["Keychain / Keystore"]
+```
 
-## 相关文档
+之后普通 API 请求统一使用论坛 JWT。
 
-- [身份与 OIDC](/development/identity)：exchange 登录细节
-- [前端（Vue 3）](/development/frontend)：设计令牌同步
-- [API 契约](/development/api)：Dart 镜像与 fixtures
+Android Emulator 调试时，为了让 issuer 保持 `localhost`，使用：
+
+```bash
+adb reverse tcp:5234 tcp:5234
+```
+
+不要把 OIDC issuer 临时改成 `10.0.2.2`；issuer、authorization endpoint 和交换校验需要保持同一身份空间。
+
+## 根导航和页面边界
+
+当前根级导航包含 Home、Campus、Notifications 和 Messages。
+
+搜索、话题、课程、Wiki、设置等作为二级页面 push 进入。iOS 使用平台原生转场和左缘返回手势；Android 保持项目自己的过渡。
+
+管理页面不在 Flutter 中重新实现一套。需要管理员权限的工作区会通过第一方受控 Web 页面打开，并继续使用服务端权限判断。
+
+## 本地状态必须按账号隔离
+
+本地状态至少按 API origin 和账号 ID 隔离，确保同一设备切换账号时不会串用旧状态。
+
+草稿、搜索记录、pending interaction、排课同步状态等需要至少区分：
+
+```text
+API origin + numeric user id
+```
+
+切换账号后，旧账号的点赞乐观状态、校园私密数据或未同步排课不能继续出现在新账号上下文。
+
+### 校园数据
+
+校园成绩、课表和消息只存在页面内存。
+
+离开 Campus、切换 session 或 App 进入后台时，应清理私密视图并取消在途请求；这些数据不进入通用离线缓存。
+
+### 聊天 outbox
+
+发送中的消息可以在当前 session 内保留，以便离开会话再回来仍能看到发送状态。
+
+它不会跨 App 终止持久化。当前消息 API也没有客户端幂等 key，所以网络结果不明确时手动重试无法保证严格 exactly-once。
+
+## 排课同步
+
+Flutter 和 Web 使用同一 `/api/pk/plans` 版本语义。
+
+本地修改先可靠保存，再尝试上传；服务端 409 时重新读取云端并对账。账号切换后必须重新建立同步基线。
+
+不要为了“离开页面时看起来同步了”就先推进本地同步时钟，再异步写磁盘。移动系统可能随时暂停进程。
+
+## 推送
+
+原生推送是可选增强通道。
+
+- iOS：APNs。
+- Android：JPush / OEM，以及配置的 FCM provider。
+
+只有用户明确同意、系统权限允许、设备 token 获取成功并完成服务端注册后，UI 才应显示已启用。
+
+配置缺失或注册失败都应保持真实关闭 / 错误状态。
+
+## 设计和 API 契约
+
+Flutter token：
+
+```text
+apps/mobile/packages/ui_kit/lib/src/theme/tokens.json
+```
+
+它与 Web `tokens.css` 同步维护。
+
+Dart API mirror 位于 `core/lib/src/gen/`，目前仍手工维护。移动端实际使用的 API 变更，需要同一 PR 更新 mirror 和反序列化测试。
+
+公开商店分发、部分 native push 和学校登录真机链路仍需要生产环境验证。代码路径存在不等于这些外部链路已经完成验收。

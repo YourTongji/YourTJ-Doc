@@ -1,41 +1,152 @@
-# 课评
+# 课程与排课
 
-本文介绍 YourTJ Hub 的课程评价（课评）能力。状态为 **Partial**：课程目录 + 匿名课评 + 审核已可用；移动端课程 UI 与课评正文内搜索仍为 Planned。
+课程域有两条主线：
 
-## 课程目录
+- 课程目录与课评：回答“这门课是什么、谁在教、大家怎么评价”。
+- PK 排课器：回答“这一学期我准备怎么排”。
 
-- **跨方言课程目录 schema**：course / alias / term / offering / instructor / offering-instructor / import-run / source-ref；
-- **离线导入 CLI**：`course-import`（`catalog` 与 `reviews` 两个子命令），支持 manifest 校验和、dry-run、quarantine（隔离）与幂等重试；reviews 子命令受 manifest `rights_approval_ref` 门控（需有权利批准引用才能导入课评）。
+它们共享课程数据，但维护的状态不同。
 
-## 读取服务
+## 数据从哪里来
 
-- PostgreSQL 只读服务，支持关键词 / 教师 / 学期 / 校区过滤；
-- SSR 页面：`/courses`、`/courses/:courseId`；
-- JSON 接口：`GET /api/forum/courses`、`GET /api/forum/courses/{courseId}`（**已由 OpenAPI 覆盖**，路由契约测试通过）。
+在线课程数据由一系统同步进入 PK 域，再物化到课程目录。
 
-## 匿名课评
+```mermaid
+flowchart LR
+  A["一系统"] --> B["course-pk-sync"]
+  B --> C["PK 快照"]
+  C --> D["materialize"]
+  D --> E["课程 / 教师 / 教学班"]
+  D --> F["搜索同步任务"]
+  F --> G["Meilisearch courses"]
+```
 
-- 课评支持写 / 改 / 删 / 点赞（helpful）/ 举报（report）；
-- **零泄漏 DTO**：课评写入/读取的 DTO 不携带会泄露作者身份的数据；
-- **审核**：CourseManager 可 hide/show 与处理举报队列；**Admin 在审计记录下可揭示匿名作者身份**（受限能力）。
+本科和研究生是两个独立 audience。即使学期编号相同，凭据、同步状态和课程快照也不会混用。
 
-## 搜索同步
+同步过程会记录 fetch log，并使用 lease version 处理 stale running / failed 任务的续跑。并发 worker 只能有一个成功认领旧 lease，避免两边同时删除或覆盖同一批快照。
 
-- Meilisearch 有独立的 `courses` scope，由**事务绑定的 outbox worker** 同步（写入与索引同步在同一事务边界，进程崩溃不丢事件）；
-- CLI：`rebuild-course-search`（全量重建）、`reconcile-course-search`（对账）。
+## 课程目录怎么建模
 
-## 统计与治理
+课程目录把课程、学期、教学班和教师拆成独立实体。
 
-- `rebuild-course-stats` CLI 重建课程统计；
-- 课评相关动作（catalog 读取、review 写/点赞/举报/揭示）有独立的每动作限流与审计。
+当前模型至少区分：
 
-## 缺口
+- 课程。
+- 学期。
+- 教学班（offering）。
+- 教师。
+- 教学班与教师关系。
+- 课程 alias / 沿革关系。
+- 课评。
 
-- 移动端课程浏览 UI（Planned）；
-- 课评正文内搜索（Planned）。
+教学班是“某学期真实开出来的一班课”，课程则是更稳定的目录实体。
 
-## 相关文档
+历史导入、在线同步和课评归属都应落到明确的课程 / 教学班身份；课程名只用于辅助匹配。
 
-- [搜索](/development/search)：course scope 与索引
-- [API 契约](/development/api)：课程只读接口覆盖
-- [路线图](/roadmap/)：课评状态
+## 历史课程数据导入
+
+历史 YourTJCourse 数据使用 manifest + JSONL 包导入。
+
+典型流程：
+
+```bash
+go run ./cmd/gooseforum course-import /path/to/manifest-catalog.yaml --dry-run
+go run ./cmd/gooseforum course-import /path/to/manifest-catalog.yaml
+
+go run ./cmd/gooseforum course-import reviews \
+  --manifest /path/to/manifest-reviews.yaml \
+  --dry-run
+
+go run ./cmd/gooseforum course-import reviews \
+  --manifest /path/to/manifest-reviews.yaml
+
+go run ./cmd/gooseforum rebuild-course-stats
+```
+
+正式导入前先跑 dry-run。manifest 会校验文件 SHA-256 和计数，同一 manifest 重复执行会幂等跳过。
+
+遇到课程代码或教学班归属歧义时，导入器应报告 / quarantine；禁止把评价静默挂到“最像”的课程上。
+
+## 课评为什么公开匿名
+
+公开评价 DTO 不返回论坛作者身份。
+
+审核和身份揭示是两条权限路径：
+
+- CourseManager 可以处理评价状态与举报。
+- 更高权限的管理员才能在需要时 reveal 作者。
+- reveal 需要理由并进入审计。
+
+公开 DTO 保持无 `userId`。管理页面需要作者信息时，走受审计的 reveal 权限。
+
+## 课程搜索
+
+课程有独立的 `courses` Meilisearch scope。
+
+课程变更时，在数据库事务中写入课程搜索任务；worker 提交后重新读取当前课程状态生成索引。
+
+课评正文不进入全文搜索。
+
+## 排课方案存什么
+
+客户端每次同步完整方案快照；服务端不接收逐条 course operation。
+
+一个快照包含：
+
+- `plans`。
+- `activePlanId`。
+- `majorSelected`。
+- `weekView`。
+
+服务端做浅层结构校验，例如：
+
+- 1–10 套方案。
+- plan id / name 非空。
+- plan id 不重复。
+- `activePlanId` 必须指向已有方案。
+- 整体 JSON 不超过 1 MiB。
+
+更细的周次、安排 sanitize 由客户端加载路径处理。
+
+## 两台设备同时改怎么处理
+
+服务端使用 `updatedAt` 做 compare-and-swap。
+
+```text
+设备 A GET -> updatedAt = t1
+设备 B GET -> updatedAt = t1
+
+设备 A PUT(baseUpdatedAt=t1) -> 成功，得到 t2
+设备 B PUT(baseUpdatedAt=t1) -> 409 Conflict
+```
+
+设备 B 不能把自己的旧快照直接盖上去。它需要重新 GET t2，再根据客户端策略对账本地未同步修改。HTTP 边界在 `apps/gooseforum/app/http/controllers/pk/plans.go`，compare-and-swap 存储逻辑在 `apps/gooseforum/app/models/forum/pk/schedule_snapshot_rep.go`。
+
+这就是多端同步里最重要的约束：**冲突要显式暴露，不能 last-write-wins 静默丢数据。**
+
+Web 当前会保护从未同步或带本地未上传修改的方案，必要时把本地分歧保留为自动恢复方案。
+
+## 修改这个域时重点测什么
+
+课程同步：
+
+- 本科 / 研究生隔离。
+- 中断续跑。
+- 重复同步幂等。
+- materialize 后搜索和统计更新。
+
+课评：
+
+- 匿名 DTO。
+- 审核 / reveal 权限。
+- 删除与恢复。
+- 统计重建。
+
+排课同步：
+
+- 首次登录。
+- 离线修改。
+- 两端并发。
+- 409 冲突。
+- 账号切换。
+- 方案数量上限。

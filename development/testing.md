@@ -1,81 +1,133 @@
-# 测试策略
+# 测试
 
-本文介绍 YourTJ Hub 的测试原则、命令、分层与 CI 映射。完整说明见仓库内 `docs/development/testing.md`。
+测试按改动风险选，不要求每个 PR 都机械跑完所有平台。
 
-## 原则
+判断方法很简单：你改变了哪一层的行为，就至少验证那一层；如果改动跨越契约、数据库或客户端边界，再把对应检查一起加上。
 
-- **验证强度随风险缩放**：认证 / PII / 治理 / 积分 / 搜索必须包含负例、重放、隐私、失败与对账用例；
-- **本地子集 ≠ CI 通过**：报告实际运行的命令与结果；
-- 上游已有扎实的 Go 单元测试（controller 层、i18n 渲染、SEO meta），保留并在改动时补充。
+## 快速选择
 
-## 命令
+| 改动 | 最少检查 |
+| --- | --- |
+| Go service / controller | `go vet ./...` + 相关 `go test` |
+| model / migration | 上一项 + PostgreSQL migration test |
+| Web 组件 / composable | `pnpm typecheck` + 相关 Vitest |
+| 浏览器布局 / focus / viewport | Browser test |
+| JSON API wire shape | `make contract-check` + route test |
+| Flutter | `melos run analyze` + 相关 Flutter test |
+| 文档 | VitePress build + link / diff check |
+
+## Go
 
 ```bash
-# 后端
-cd apps/gooseforum && go vet ./... && go test ./...
+cd apps/gooseforum
+go vet ./...
+go test ./...
+```
 
-# 前端
-cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build
+日常开发可以先跑受影响包。例如只改课程 service：
 
-# 全量
+```bash
+go test ./app/service/courseservice/...
+```
+
+Bug 修复优先写一个能复现问题的失败测试，再改实现。
+
+## PostgreSQL migration
+
+涉及模型和 migration 时，需要真实 PostgreSQL：
+
+```bash
+YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable" \
+  go test ./app/migration/ -run 'TestSchema' -v
+```
+
+这一步专门发现 SQLite 容易放过的类型、默认值、索引和升级路径问题。
+
+## Web
+
+```bash
+cd apps/gooseforum/resource
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Browser tests 用于普通 DOM 模拟器覆盖不到的问题，例如：
+
+- viewport / resize。
+- focus 恢复。
+- Escape 和键盘导航。
+- fixed / sticky 层级。
+- reduced motion。
+- 多语言长文本。
+
+运行：
+
+```bash
+pnpm test:browser
+```
+
+## OpenAPI
+
+```bash
+make contract-check
+```
+
+这会检查 OpenAPI、生成 TypeScript、fixtures 相关产物和 route coverage。
+
+新增 JSON route 但未更新 contract 时，这个门禁会失败。
+
+## Flutter
+
+```bash
+cd apps/mobile
+melos bootstrap
+melos run analyze
+melos run test
+```
+
+普通 `melos run test` 会排除 pixel golden。需要更新 golden 时，按具体测试或仓库提供的 Linux 流程更新，不要跨平台一次性刷新整套截图。
+
+真机依赖的能力，例如学校登录、APNs / Android 推送，单元测试通过后仍需要设备验收。
+
+## 全量常规门禁
+
+```bash
 make test
-
-# 契约：lint、bundle、重新生成已提交的 OpenAPI TypeScript 产物
-cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run check
-# 等价 Make 目标：make contract-lint / contract-generate-ts / contract-check
-
-# 构建冒烟
-make build && ./bin/yourtj-hub serve   # 然后 curl http://localhost:5234
 ```
 
-## 分层测试
+它会运行后端 vet / test、contract check 和 Web typecheck / test。
 
-| 层 | 测试类型 | 工具 |
-|---|---|---|
-| bundles | 工具单元测试 | `go test` |
-| models | 模型 / 迁移测试 | `go test` |
-| service | 业务单元 + 事务用例 | `go test` + sqlmock / testcontainers |
-| http/controllers | handler + 渲染测试 | `go test` + httptest |
-| resource（前端） | typecheck + 组件测试 | vue-tsc + Vitest |
-| contract | OpenAPI lint/bundle/类型生成 + 真实 Gin 路由链 fixture 断言 | pnpm + go test + httptest |
-| mobile | widget / unit | `flutter test`（melos analyze + test） |
-| mobile OIDC | controller 链单元 + E2E 脚本 | `auth/test/oidc_controller_test.dart` + `scripts/oidc_e2e.sh` |
+Browser tests、Flutter 和部分部署检查有独立 workflow，不包含在这一条命令里。
 
-## PostgreSQL 迁移测试
+## 高风险功能要测失败路径
 
-- `app/migration/migration_pg_test.go` 提供 `TestSchemaMigratesOnPostgreSQL` 与 `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL`，由 `YOURTJ_TEST_PG_URL` 门控（CI 设置、本地未设置时跳过）；
-- **任何模型 / 迁移改动必须过这些 PG 测试**——模型不得硬编码 MySQL-only 类型（`bigint unsigned` / `datetime` / `tinyint`），否则 GORM 原样渲染、PostgreSQL 拒绝，表静默不创建（issue #8 生产回归）；
+只测 happy path 往往不够。
 
-```bash
-YOURTJ_TEST_PG_URL=... go test ./app/migration/ -run 'TestSchema' -v
+### 身份
+
+至少考虑 session 撤销、TOTP challenge 重放、CSRF、frozen / deleted / bot 用户，以及 OIDC state / nonce / PKCE。
+
+### 搜索
+
+测试 Meilisearch 不可用、任务重试、隐藏 / 删除内容移出索引，以及全量 rebuild。
+
+### 排课同步
+
+测试两端从同一版本修改，其中一端先保存，另一端拿旧 `baseUpdatedAt` 得到 409。
+
+### 我的校园
+
+测试 session 切换、在途响应失效、`no-store` 和私密数据不进入持久化缓存。
+
+## PR 里怎么报告
+
+不要只写 `tests passed`。列出你真正运行的命令，以及没有验证的高风险路径。
+
+```text
+go test ./app/service/courseservice/...  ✅
+make contract-check                    ✅
+mobile physical-device login           未验证
 ```
 
-## CI 映射
-
-| 工作流 / job | 触发 | 行为 |
-|---|---|---|
-| `ci-backend.yml` | 后端 / 契约 fixture 路径变更 | `go vet` + `go test` + `go build`；PostgreSQL 集成测试（`TEST_PG_DSN` 门控） |
-| `ci-backend.yml` 内的 `ci-backend-pg` job | 模型 / 迁移 / SQL 连接 / Go module 变更 | 起 `postgres:16-alpine` 服务 + 迁移 schema 测试（`YOURTJ_TEST_PG_URL`）；**不是独立工作流**，由 `ci-backend` 的 `backend_pg` 路径过滤分支触发 |
-| `ci-frontend.yml` | 前端路径变更 | pnpm typecheck + 站点单元测试 + build |
-| `ci-contract.yml` | 契约输入变更 | OpenAPI lint + bundle + TypeScript 生成，拒绝 `@gooseforum/client/src/gen` 下未提交的 diff；路由级契约测试跑在 backend `go test` 里 |
-| `ci-mobile.yml` | 移动端路径变更 | melos bootstrap + analyze + test（**非必选**，按路径过滤） |
-
-CI 说明：
-
-- 所有 `push` 触发**只限 `dev` 与 `main`**：推送到仓库内 PR 分支由一次 `pull_request` 运行校验，不会重复跑 push；
-- 同一 PR/分支的 CI 运行取代旧的进行中运行；
-- 必选工作流（backend/frontend/contract）对每个 PR 启动，其各自做路径检测，重活只在所属输入变更时跑。
-
-## 冒烟清单
-
-```bash
-curl http://localhost:5234/           # 首页 HTML（三模式渲染，GoHTML）
-curl http://localhost:5234/api/...    # JSON API
-# 前端开发：http://localhost:3010
-```
-
-## 相关文档
-
-- [概述与架构](/development/overview)：开发工作流
-- [API 契约](/development/api)：契约测试
-- [贡献指南](/guide/contributing)：PR 与验证要求
+这样 Reviewer 能直接判断还缺哪一层验证。
