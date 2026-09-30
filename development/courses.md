@@ -89,38 +89,31 @@ go run ./cmd/gooseforum rebuild-course-stats
 
 ## 排课方案存什么
 
-客户端每次同步完整方案快照；服务端不接收逐条 course operation。
+云端同步以单套方案为单位：每套方案是一条独立的 plan item，带自己的整数 revision，客户端通过 GET / PUT / DELETE `/api/pk/plan-items` 逐方案读写。
 
-一个快照包含：
+服务端校验：
 
-- `plans`。
-- `activePlanId`。
-- `majorSelected`。
-- `weekView`。
-
-服务端做浅层结构校验，例如：
-
-- 1–10 套方案。
+- 最多 10 套方案，超配额返回 409。
 - plan id / name 非空。
-- plan id 不重复。
-- `activePlanId` 必须指向已有方案。
-- 整体 JSON 不超过 1 MiB。
+- 请求体积不超过 1 MiB。
 
 更细的周次、安排 sanitize 由客户端加载路径处理。
 
+历史上同步粒度是整份快照（`/api/pk/plans`，plans / activePlanId / majorSelected / weekView 四字段整体替换）。该路径仍在，但账号完成到逐方案的惰性迁移后，快照读写一律返回 410；迁移会把旧快照中的每套方案复制为 revision=1 的 plan item。
+
 ## 两台设备同时改怎么处理
 
-服务端使用 `updatedAt` 做 compare-and-swap。
+服务端对每套方案用 revision 做 compare-and-swap。
 
 ```text
-设备 A GET -> updatedAt = t1
-设备 B GET -> updatedAt = t1
+设备 A GET -> plan revision = 3
+设备 B GET -> plan revision = 3
 
-设备 A PUT(baseUpdatedAt=t1) -> 成功，得到 t2
-设备 B PUT(baseUpdatedAt=t1) -> 409 Conflict
+设备 A PUT(baseRevision=3) -> 成功，revision 变为 4
+设备 B PUT(baseRevision=3) -> 409 Conflict
 ```
 
-设备 B 不能把自己的旧快照直接盖上去。它需要重新 GET t2，再根据客户端策略对账本地未同步修改。HTTP 边界在 `apps/gooseforum/app/http/controllers/pk/plans.go`，compare-and-swap 存储逻辑在 `apps/gooseforum/app/models/forum/pk/schedule_snapshot_rep.go`。
+删除同样携带 `baseRevision`；方案已被另一设备删除时返回 410。设备 B 不能把自己的旧版本直接盖上去，需要重新 GET 最新 revision，再按客户端策略对账本地未同步修改。HTTP 边界在 `apps/gooseforum/app/http/controllers/pk/plan_items.go`，compare-and-swap 存储逻辑在 `apps/gooseforum/app/models/forum/pk/plan_item_rep.go`。
 
 这就是多端同步里最重要的约束：**冲突要显式暴露，不能 last-write-wins 静默丢数据。**
 
