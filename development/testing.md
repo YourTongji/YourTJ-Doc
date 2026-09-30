@@ -86,8 +86,6 @@ melos run analyze
 melos run test
 ```
 
-普通 `melos run test` 会排除 pixel golden。需要更新 golden 时，按具体测试或仓库提供的 Linux 流程更新，不要跨平台一次性刷新整套截图。
-
 真机依赖的能力，例如学校登录、APNs / Android 推送，单元测试通过后仍需要设备验收。
 
 ## 全量常规门禁
