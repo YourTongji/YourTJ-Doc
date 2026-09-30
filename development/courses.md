@@ -50,17 +50,17 @@ flowchart LR
 典型流程：
 
 ```bash
-go run ./cmd/gooseforum course-import /path/to/manifest-catalog.yaml --dry-run
-go run ./cmd/gooseforum course-import /path/to/manifest-catalog.yaml
+go run . course-import /path/to/manifest-catalog.yaml --dry-run
+go run . course-import /path/to/manifest-catalog.yaml
 
-go run ./cmd/gooseforum course-import reviews \
+go run . course-import reviews \
   --manifest /path/to/manifest-reviews.yaml \
   --dry-run
 
-go run ./cmd/gooseforum course-import reviews \
+go run . course-import reviews \
   --manifest /path/to/manifest-reviews.yaml
 
-go run ./cmd/gooseforum rebuild-course-stats
+go run . rebuild-course-stats
 ```
 
 正式导入前先跑 dry-run。manifest 会校验文件 SHA-256 和计数，同一 manifest 重复执行会幂等跳过。
