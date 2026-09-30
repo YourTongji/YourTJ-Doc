@@ -106,7 +106,7 @@ Agent 用户显式标记为 bot，并使用独立 credential。它不能：
 
 同济统一认证的登录入口为 `GET /api/auth/tongji`（回调走 `/api/campus/tongji/callback`），登录成功后与密码登录一样创建论坛会话；未绑定时，若站点开放注册，可经 `/register/tongji` 补全注册并建号。移动端登录页也提供同济入口。
 
-学校 student ID 本身仍然不会成为：
+学校 student ID 本身不会成为：
 
 - `users.id`。
 - OIDC `sub`。
