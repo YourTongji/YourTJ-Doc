@@ -9,8 +9,11 @@ Web 支持：
 - 密码。
 - GitHub OAuth。
 - Google OAuth（实例配置后）。
+- 同济统一认证（实例配置后）。
 
-OAuth 只登录或绑定已有账号，不自动创建新的 YourTJ 用户。
+移动端客户端在浏览器中完成登录授权，可选密码、GitHub / Google OAuth、原生 Sign in with Apple 和同济统一认证。
+
+GitHub / Google OAuth 和 Apple 登录只登录或绑定已有账号，不自动创建新的 YourTJ 用户。同济统一认证不同，未注册用户在站点开放注册时可以通过同济入口完成注册。
 
 ## TOTP 两步验证
 
@@ -26,7 +29,7 @@ OAuth 只登录或绑定已有账号，不自动创建新的 YourTJ 用户。
 恢复码只保存哈希，使用一次后失效。请在开启 TOTP 时把恢复码保存到可靠的位置。
 
 ::: warning
-当前 GitHub OAuth 和 OIDC 登录不会再经过论坛侧 TOTP。TOTP 目前保护的是密码登录链路。
+当前 GitHub / Google OAuth、OIDC、Apple 和同济统一认证登录都不会经过论坛侧 TOTP。TOTP 目前保护的是密码登录链路。
 :::
 
 ## 管理登录设备

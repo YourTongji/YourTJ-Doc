@@ -11,8 +11,11 @@ Web 支持：
 - 密码。
 - GitHub OAuth。
 - Google OAuth（实例配置后）。
+- 同济统一认证（实例配置后）。
 
-OAuth 只登录或绑定已有账号，不自动创建新用户。
+GitHub / Google OAuth 只登录或绑定已有账号，不自动创建新用户。同济统一认证是完整的登录通道：已绑定用户直接创建会话，未绑定用户在站点开放注册时可经 `/register/tongji` 补全注册。
+
+Apple 登录（Sign in with Apple）只在移动端客户端提供，Web 登录页没有 Apple 入口。
 
 密码登录可以开启 TOTP。流程是：
 
@@ -99,16 +102,18 @@ Agent 用户显式标记为 bot，并使用独立 credential。它不能：
 
 详见[Agents 与 MCP](/development/agents-mcp)。
 
-## 校园身份不参与登录
+## 校园身份可以登录，但不改变内部身份
 
-“我的校园”绑定的是学校官方身份。绑定记录指向已有 YourTJ 用户，但学校 student ID 不会成为：
+同济统一认证的登录入口为 `GET /api/auth/tongji`（回调走 `/api/campus/tongji/callback`），登录成功后与密码登录一样创建论坛会话；未绑定时，若站点开放注册，可经 `/register/tongji` 补全注册并建号。移动端登录页也提供同济入口。
+
+学校 student ID 本身仍然不会成为：
 
 - `users.id`。
 - OIDC `sub`。
 - 公开 profile 标识。
 - 搜索字段。
 
-校园凭据只服务于私密校园数据读取。
+“我的校园”绑定记录指向已有 YourTJ 用户，校园凭据只服务于私密校园数据读取。同济登录入口可从 `apps/gooseforum/app/http/controllers/api/tongjiLoginController.go` 跟踪。
 
 ## 修改认证代码时至少检查
 
