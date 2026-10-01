@@ -14,7 +14,7 @@ flowchart LR
   C --> E["iOS WidgetKit"]
 ```
 
-- **快照来源**：校园页把 profile / calendar / timetable / today 四类数据以单行原子快照写入离线存储（`lib/src/offline/campus_snapshot_store.dart`）。小组件只消费这份快照，不发起新的学校请求。
+- **快照来源**：校园页把 profile / calendar / timetable / today 四类数据以单行原子快照写入离线存储（`lib/src/offline/campus_snapshot_store.dart`），表结构、校验和淘汰规则见[持久化存储](/development/mobile/persistence)。小组件只消费这份快照，不发起新的学校请求。
 - **Projection 生成**：`ScheduleWidgetProjection.fromSnapshot` 把官方课表整理成 schema 2 的投影（`lib/src/campus_widget/schedule_widget_projection.dart`）：当日保留服务端的权威结果，校历规则可靠时再推算出八天滚动窗口；时区固定 `Asia/Shanghai`，超过 `staleAfter`（7 天）未更新即视为过期。
 - **共享存储**：投影经 `ScheduleWidgetBridge` 写入 App Group `group.tj.yourtj.forumApp.widgets`（键 `schedule_widget_projection`），这是 Flutter 与原生代码之间唯一的交换通道。
 - **原生只读**：Android Glance 和 iOS WidgetKit 从共享存储读取投影后自行渲染时间线，不回读 App 数据库，也不读取排课器 store——小组件上永远是官方课表，不包含用户自建的排课方案。

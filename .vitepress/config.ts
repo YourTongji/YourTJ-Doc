@@ -112,6 +112,7 @@ export default withMermaid(
               collapsed: true,
               items: [
                 { text: '概览', link: '/development/mobile/' },
+                { text: '持久化存储', link: '/development/mobile/persistence' },
                 { text: '桌面小组件', link: '/development/mobile/widgets' }
               ]
             },
