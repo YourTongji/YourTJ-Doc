@@ -107,7 +107,13 @@ export default withMermaid(
             { text: '课程与排课', link: '/development/courses' },
             { text: '身份与 OIDC', link: '/development/identity' },
             { text: '搜索', link: '/development/search' },
-            { text: '移动端', link: '/development/mobile' },
+            {
+              text: '移动端',
+              collapsed: true,
+              items: [
+                { text: '概览', link: '/development/mobile/' }
+              ]
+            },
             { text: 'Agents 与 MCP', link: '/development/agents-mcp' },
             { text: '测试', link: '/development/testing' },
             { text: '贡献代码', link: '/guide/contributing' }
