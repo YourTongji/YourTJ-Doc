@@ -164,13 +164,57 @@ int generation = 0;
 
 队列只保证互斥；不合时宜的操作由两层闸门处理：类别挂起时操作在入口直接失败，代际不匹配时操作自行作废。
 
-### 相关类型
+### 数据结构
 
-| 类型 | 字段 | 说明 |
+`CampusCacheScope` 和 `CampusSnapshot` 定义在 `campus_snapshot_store.dart`；`CampusDataset` 定义在 core 包的契约镜像 `packages/core/lib/src/gen/campus.dart`。
+
+#### CampusCacheScope
+
+```dart
+class CampusCacheScope {
+  const CampusCacheScope({required this.site, required this.accountId});
+
+  final String site;
+  final int accountId;
+}
+```
+
+缓存作用域，也是 `campus_snapshots` 表行键的两半：`site` 是 API origin，`accountId` 是数字账号 ID。切换站点或账号即产生不同作用域，各作用域的快照互不可见。
+
+#### CampusSnapshot
+
+```dart
+class CampusSnapshot {
+  const CampusSnapshot({
+    required this.bindingRevision,
+    required this.committedAt,
+    required this.data,
+  });
+
+  final String bindingRevision;
+  final DateTime committedAt;
+  final Map<String, CampusDataset> data;
+}
+```
+
+`read` 和 `write` 的返回值，代表一份完整快照。`bindingRevision` 是写入时的校园绑定版本（复用前必须与当前绑定一致）；`committedAt` 是落盘时间，读取时据此判断 `maxAge` 时效；`data` 的键就是四个白名单键。
+
+#### CampusDataset
+
+单类数据集的通用容器，不同数据类别取用不同字段：calendar 的"教学周"等指标放在 `metrics`，timetable 和 today 的课程放在 `events`，today 额外带 `teachingDay`。
+
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `CampusCacheScope` | `site`、`accountId` | 缓存作用域：API origin 加数字账号 ID |
-| `CampusSnapshot` | `bindingRevision`、`committedAt`、`data` | 一次读写的完整结果：绑定版本、提交时间和四个数据集的映射 |
-| `CampusDataset` | `key`、`status`、`updatedAt`、`metrics`、`columns`、`rows`、`events`、`series`、`messages`、`teachingDay` | 单类数据集；`status` 只能是 ready 或 empty |
+| `key` | `String` | 数据类别标识，必须与 payload 里的键名一致 |
+| `status` | `String` | 只能是 ready 或 empty |
+| `updatedAt` | `String` | 该数据集自身的更新时间 |
+| `metrics` | `List<CampusMetric>` | 指标列表，每项含 label / value / unit |
+| `columns` | `List<String>` | 表格列名 |
+| `rows` | `List<List<String>>` | 表格行 |
+| `events` | `List<CampusEvent>` | 课程事件：课程名、教师、教室、校区、星期、节次、周次、学分 |
+| `series` | `List<CampusPoint>` | 曲线点，每项含 label / value |
+| `messages` | `List<CampusMessageSummary>` | 快照里恒为空数组，见"边界" |
+| `teachingDay` | `CampusTeachingDay?` | 今日教学日：日期、调课类型、调课标签、节次数 |
 
 ### 边界
 
