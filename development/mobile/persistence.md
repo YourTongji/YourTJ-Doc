@@ -130,27 +130,39 @@ void invalidate()
 
 ### 内部机制
 
-实例方法的互斥由两个私有成员和一个计数器实现：
+实例方法的互斥由两个私有成员和一个代际计数器实现，按队列顺序排列：
 
-| 成员 | 说明 |
-| --- | --- |
-| `_tail` | 串行队列的尾部，保存最近一个已入队操作的 Future，初值为已完成的 Future |
-| `_serialize` | 把新操作链接到 `_tail` 之后的包装函数，所有实例方法的函数体都包在它里面 |
-| `generation` | 代际计数器，`invalidate()` 递增；`write` 入队时记下当前代际（或调用方传入的 `expectedGeneration`），执行时与最新代际比对 |
-
-**`_serialize` 的函数体只有三行，互斥全靠它们：**
+#### _tail
 
 ```dart
-final result = _tail.then((_) => operation());
-_tail = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
-return result;
+Future<void> _tail = Future.value();
+```
+
+串行队列的尾部，保存最近一个已入队操作的 Future，初值为已完成的 Future——第一个操作因此可以直接执行。
+
+#### _serialize
+
+```dart
+Future<T> _serialize<T>(Future<T> Function() operation) {
+  final result = _tail.then((_) => operation());
+  _tail = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+  return result;
+}
 ```
 
 - 第一行把 `operation` 链在 `_tail` 之后——只有前面的操作全部完成，`operation` 才开始执行，同一时刻只有一个读写真正运行，按调用顺序先来先服务。"校验失败后删行""写入后淘汰旧行"这类多步操作因此不会被并发读写交错打断。
 - 第二行把 `_tail` 推进到本次操作，且错误在这里吞掉——单个操作失败（比如被围栏作废的旧写入抛 `CampusSnapshotSuperseded`）不会阻断后面排队的操作。
 - 返回值是 `result` 本身，调用方照常拿到结果或异常。
 
-队列只保证互斥；不合时宜的操作由另外两层闸门处理：类别挂起时操作在入口直接失败，代际不匹配时操作自行作废。
+#### generation
+
+```dart
+int generation = 0;
+```
+
+代际计数器，是队列之上的作废闸门。`invalidate()` 递增它；`write` 入队时记下当前代际（或调用方传入的 `expectedGeneration`），执行时与最新代际比对，不一致即抛 `CampusSnapshotSuperseded` 作废。
+
+队列只保证互斥；不合时宜的操作由两层闸门处理：类别挂起时操作在入口直接失败，代际不匹配时操作自行作废。
 
 ### 相关类型
 
