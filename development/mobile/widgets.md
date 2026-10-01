@@ -2,6 +2,8 @@
 
 移动端在 Android（Glance）和 iOS（WidgetKit）上提供三种桌面课表小组件：下一节课、今日课表和课程时间线。小组件不联网，渲染所需的数据全部来自 App 提前写入的本地快照。
 
+下文 `lib/` 开头的路径都相对 `apps/mobile/packages/forum_app/`；各层的完整路径见文末表格。
+
 ## 数据流
 
 ```mermaid
