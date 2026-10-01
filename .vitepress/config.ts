@@ -111,7 +111,8 @@ export default withMermaid(
               text: '移动端',
               collapsed: true,
               items: [
-                { text: '概览', link: '/development/mobile/' }
+                { text: '概览', link: '/development/mobile/' },
+                { text: '桌面小组件', link: '/development/mobile/widgets' }
               ]
             },
             { text: 'Agents 与 MCP', link: '/development/agents-mcp' },

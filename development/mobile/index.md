@@ -72,6 +72,8 @@ API origin + numeric user id
 
 离开 Campus、切换 session 或 App 进入后台时，应清理私密视图并取消在途请求；这些数据不进入通用离线缓存。
 
+校园快照还会派生一份不含姓名、学号等私密字段的课表投影，供桌面小组件只读展示，细节见[桌面小组件](/development/mobile/widgets)。
+
 ### 聊天 outbox
 
 发送中的消息可以在当前 session 内保留，以便离开会话再回来仍能看到发送状态。
