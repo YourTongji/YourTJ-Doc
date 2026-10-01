@@ -27,6 +27,8 @@
 
 唯一落盘的校园数据是校园快照。`CampusSnapshotStore`（`lib/src/offline/campus_snapshot_store.dart`）用 drift 在共享的 `AppDatabase` 里维护一张 `campus_snapshots` 表，每行对应一个作用域（`site + account_id`）；payload 是 profile、calendar、timetable、today 四个白名单数据集组成的单份 JSON——分别对应校园个人资料、校历、学期课表和今日教学日（含当天课程），在事务内用单条 `INSERT OR REPLACE` 原子替换。
 
+所有实例方法共享一个串行队列：每个操作经 `_serialize` 链在上一个操作的 Future 之后执行，同一时刻只有一个读写真正运行，按调用顺序先来先服务；某个操作失败不会阻断后面排队的操作。这样"校验失败后删行""写入后淘汰旧行"这类多步操作不会被并发读写交错打断。队列之上再叠两层闸门：类别挂起时操作直接失败，代际不匹配时操作自行作废。
+
 ### 构造
 
 `CampusSnapshotStore(AppDatabase _db, {DateTime Function()? now})`
@@ -74,7 +76,7 @@ Future<CampusSnapshot?> read(
 | `scope` | `CampusCacheScope` | 要读取的作用域（site + accountId） |
 | `bindingRevision` | `String?`，位置可选 | 传入时只认该绑定版本的行，用于确认快照与当前校园绑定一致 |
 
-无行、campus 类别被挂起或校验失败（schema 版本、大小、时效、数据集键与状态）时返回 null；校验失败会顺带删除该行，下次读取按无缓存处理。与其他方法一样走串行队列。
+无行、campus 类别被挂起或校验失败（schema 版本、大小、时效、数据集键与状态）时返回 null；校验失败会顺带删除该行，下次读取按无缓存处理。
 
 #### write
 
