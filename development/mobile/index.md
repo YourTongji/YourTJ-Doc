@@ -68,9 +68,9 @@ API origin + numeric user id
 
 ### 校园数据
 
-校园成绩、课表和消息只存在页面内存。
+校园成绩、课表和消息的页面展示只保存在内存，离开 Campus、切换 session 或 App 进入后台时即清理，在途请求一并取消；这些数据不进入话题和私信共用的通用离线缓存。
 
-离开 Campus、切换 session 或 App 进入后台时，应清理私密视图并取消在途请求；这些数据不进入通用离线缓存。
+落盘的部分（通用离线缓存、校园快照、本机写作、凭据）集中在[持久化存储](/development/mobile/persistence)一篇；桌面小组件消费的课表投影就派生自校园快照，见[桌面小组件](/development/mobile/widgets)。
 
 ### 聊天 outbox
 
