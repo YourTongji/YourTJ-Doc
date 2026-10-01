@@ -17,7 +17,7 @@
 
 ## 通用离线缓存
 
-`AppDatabase` 是一个 drift 数据库，按 `CacheCategory`（forum / chat / campus / media）划分数据类别。每个类别有独立的暂停开关和清理代际：用户清除某类缓存或会话失效时，只挂起对应类别，不牵连其他类别的在途请求。
+`AppDatabase` 是一个 drift 数据库，按 `CacheCategory`（forum / chat / campus / media）划分数据类别。每个类别有独立的挂起开关和清理代际。挂起由 `CacheCoordinator` 在清理时设置：用户清除某类缓存时，先 `suspend` 该类别（同时递增它的清理代际、作废在途工作），清库完成后 `release` 恢复。挂起期间，该类别的读写在入口处直接失败，而不是排队到清理结束后执行；其他类别的在途请求不受影响。对校园快照来说，这个窗口期内的写入表现为抛 `CampusSnapshotSuperseded`。
 
 数据库有 64 MiB 的物理预算（`physicalBudgetBytes`），写入后通过 `maintainBudget` 回收超额空间，回收阈值为 4 MiB。
 
