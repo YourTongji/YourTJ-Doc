@@ -25,14 +25,47 @@
 
 ## 校园快照
 
-唯一落盘的校园数据是校园快照，由 `CampusSnapshotStore` 用 drift 在同一个 `AppDatabase` 里维护一张 `campus_snapshots` 表：
+唯一落盘的校园数据是校园快照。`CampusSnapshotStore`（`lib/src/offline/campus_snapshot_store.dart`）用 drift 在共享的 `AppDatabase` 里维护一张 `campus_snapshots` 表，每行对应一个作用域（`site + account_id`）；payload 是 profile、calendar、timetable、today 四个白名单数据集组成的单份 JSON——分别对应校园个人资料、校历、学期课表和今日教学日（含当天课程），在事务内用单条 `INSERT OR REPLACE` 原子替换。
 
-- 每行对应一个缓存作用域（`site + account_id`），行内记录 `binding_revision` 和 schema 版本；最多保留 4 个作用域，超出时按提交时间淘汰最旧的。
-- profile、calendar、timetable、today 四个白名单数据集各占 payload 里一个键，状态只能是 ready 或 empty；整份快照序列化成一份 JSON，在事务内用单条 `INSERT OR REPLACE` 写入，读者不会看到刷新到一半的数据。
-- `binding_revision` 是服务端 `/api/campus` 返回的校园身份绑定版本号。复用快照前必须与当前绑定版本一致，重新绑定或换绑学号后旧快照整体作废，防止上一份课表和资料串给新绑定。
-- 读取时校验 schema 版本、大小（上限 1 MiB）和时效（30 天，容忍 5 分钟时钟偏差），任何一项不过就删除该行、按无缓存处理。
-- 写入走串行队列并带代际标记：缓存 epoch 变化或校园缓存被清除后，仍在队列里的旧写入会抛 `CampusSnapshotSuperseded` 作废，不会盖住新会话的数据。
-- 消息摘要和正文刻意不序列化——payload 里的 `messages` 恒为空数组，凭据和非白名单数据集进不了这个 store。
+### 构造
+
+`CampusSnapshotStore(AppDatabase _db, {DateTime Function()? now})`
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `_db` | `AppDatabase` | 共享的 drift 数据库实例，`campus_snapshots` 表建在其中；campus 类别被挂起时（`_db.available(CacheCategory.campus)` 为假），读写都会直接失败 |
+| `now` | `DateTime Function()?`，命名可选 | 取当前时间的函数，默认 `DateTime.now`；测试注入固定时钟，让 30 天时效、时钟偏差这些时间判断可复现 |
+
+### 常量
+
+| 常量 | 值 | 说明 |
+| --- | --- | --- |
+| `schemaVersion` | `1` | 快照行的 schema 版本，写入时随行记录；读取时不匹配即视为损坏，删除该行、按无缓存处理 |
+| `maxAge` | 30 天 | 快照时效：`committedAt` 距今超过 30 天的行在读取时作废；未来时间最多容忍 5 分钟时钟偏差 |
+| `maxBytes` | 1 MiB | 单份 payload 的 UTF-8 字节上限：写入超限抛 `StateError`，读取超限按损坏处理 |
+| `maxScopes` | `4` | 表中最多保留的作用域行数；每次写入后在同一事务里按 `committed_at` 从新到旧保留 4 行，其余删除 |
+
+### 实例方法
+
+| 方法 | 行为 |
+| --- | --- |
+| `read(scope, [bindingRevision])` | 读取一个作用域并做完整校验（schema 版本、大小、时效、数据集键与状态）；无行或校验失败返回 null，失败时顺带删除该行。传入 `bindingRevision` 时只认匹配版本的行 |
+| `write(scope, bindingRevision, data, {committedAt, expectedGeneration})` | 校验四个白名单数据集齐全、键名一致且状态为 ready 或 empty 后，事务内写入并淘汰超出 `maxScopes` 的旧行，随后触发 `maintainBudget`；代际不匹配或 campus 被挂起时抛 `CampusSnapshotSuperseded`。返回写好的 `CampusSnapshot` |
+| `clearScope(scope)` | 删除单个作用域的全部行，并递增代际 |
+| `clear()` | 清空整张表并递增代际；登出、401 会话失效时的清理走这里 |
+| `invalidate()` | 只递增代际，让串行队列里尚未执行的旧读写作废 |
+
+### 相关类型
+
+| 类型 | 字段 | 说明 |
+| --- | --- | --- |
+| `CampusCacheScope` | `site`、`accountId` | 缓存作用域：API origin 加数字账号 ID |
+| `CampusSnapshot` | `bindingRevision`、`committedAt`、`data` | 一次读写的完整结果：绑定版本、提交时间和四个数据集的映射 |
+| `CampusDataset` | `key`、`status`、`updatedAt`、`metrics`、`columns`、`rows`、`events`、`series`、`messages`、`teachingDay` | 单类数据集；`status` 只能是 ready 或 empty |
+
+### 边界
+
+两条隐私边界值得单说。`binding_revision` 是服务端 `/api/campus` 返回的校园身份绑定版本号，复用快照前必须与当前绑定版本一致，重新绑定或换绑学号后旧快照整体作废，防止上一份课表和资料串给新绑定。payload 里的 `messages` 恒为空数组——消息摘要和正文刻意不序列化，凭据和非白名单数据集进不了这个 store。
 
 桌面小组件消费的课表投影就派生自这份快照，细节见[桌面小组件](/development/mobile/widgets)。
 
