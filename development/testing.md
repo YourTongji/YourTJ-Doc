@@ -86,8 +86,6 @@ melos run analyze
 melos run test
 ```
 
-普通 `melos run test` 会排除 pixel golden。需要更新 golden 时，按具体测试或仓库提供的 Linux 流程更新，不要跨平台一次性刷新整套截图。
-
 真机依赖的能力，例如学校登录、APNs / Android 推送，单元测试通过后仍需要设备验收。
 
 ## 全量常规门禁
@@ -114,7 +112,7 @@ Browser tests、Flutter 和部分部署检查有独立 workflow，不包含在�
 
 ### 排课同步
 
-测试两端从同一版本修改，其中一端先保存，另一端拿旧 `baseUpdatedAt` 得到 409。
+测试两端从同一版本修改，其中一端先保存，另一端拿旧 `baseRevision` 得到 409；方案已被另一设备删除时得到 410。
 
 ### 我的校园
 

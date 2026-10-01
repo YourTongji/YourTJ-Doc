@@ -76,15 +76,21 @@ API origin + numeric user id
 
 发送中的消息可以在当前 session 内保留，以便离开会话再回来仍能看到发送状态。
 
-它不会跨 App 终止持久化。当前消息 API也没有客户端幂等 key，所以网络结果不明确时手动重试无法保证严格 exactly-once。
+文本消息的 outbox 不跨 App 终止持久化。图片发送意图会写入账号级安全存储用于恢复，但恢复出来的是显式重试项，不会自动重发网络请求。
+
+每条待发消息都带客户端生成的幂等 key：`clientMessageId`（16 字节随机 hex；服务端字段可选，上限 64 字符），随 `POST /api/forum/chat/send` 提交。服务端在事务内按 `(sender_id, client_message_id)` 查重：key 已存在且内容、消息类型、回复目标全部一致时视为重放，直接返回成功，不重复落库、不重复推送；任何一项不一致则返回业务错误；该组合上的唯一索引兜底并发。因此网络结果不明确时重试是安全的，不会产生重复消息。
+
+两个边界值得知道：已提交的重试即使双方此后互相拉黑也按成功返回，权限检查只拦新写入；消息列表不回显 `clientMessageId`，outbox 对已发送气泡的对账按发送者、内容、类型和 afterId 启发式匹配——API 确认的是会话，不是消息 ID。
+
+实现入口：客户端 `apps/mobile/packages/forum_app/lib/src/messages/chat_outbox.dart`，服务端 `apps/gooseforum/app/service/chatservice/chatservice.go`，契约测试 `apps/gooseforum/app/http/routes/contract_chat_idempotency_test.go`。
 
 ## 排课同步
 
-Flutter 和 Web 使用同一 `/api/pk/plans` 版本语义。
+Flutter 和 Web 使用同一 `/api/pk/plan-items` 逐方案同步语义：每套方案带服务端 revision，PUT / DELETE 携带 `baseRevision` 做 compare-and-swap。
 
-本地修改先可靠保存，再尝试上传；服务端 409 时重新读取云端并对账。账号切换后必须重新建立同步基线。
+本地修改先可靠保存，再尝试上传；服务端 409（revision 已变）或 410（方案已被另一设备删除）时重新读取云端并对账。账号切换后必须重新建立同步基线。
 
-不要为了“离开页面时看起来同步了”就先推进本地同步时钟，再异步写磁盘。移动系统可能随时暂停进程。
+不要为了“离开页面时看起来同步了”就先推进本地 revision，再异步写磁盘。移动系统可能随时暂停进程。
 
 ## 推送
 
