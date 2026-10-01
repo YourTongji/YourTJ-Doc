@@ -60,13 +60,73 @@
 
 ### 实例方法
 
-| 方法 | 行为 |
+#### read
+
+```dart
+Future<CampusSnapshot?> read(
+  CampusCacheScope scope, [
+  String? bindingRevision,
+])
+```
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `scope` | `CampusCacheScope` | 要读取的作用域（site + accountId） |
+| `bindingRevision` | `String?`，位置可选 | 传入时只认该绑定版本的行，用于确认快照与当前校园绑定一致 |
+
+无行、campus 类别被挂起或校验失败（schema 版本、大小、时效、数据集键与状态）时返回 null；校验失败会顺带删除该行，下次读取按无缓存处理。与其他方法一样走串行队列。
+
+#### write
+
+```dart
+Future<CampusSnapshot> write(
+  CampusCacheScope scope,
+  String bindingRevision,
+  Map<String, CampusDataset> data, {
+  DateTime? committedAt,
+  int? expectedGeneration,
+})
+```
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `scope` | `CampusCacheScope` | 写入的作用域 |
+| `bindingRevision` | `String` | 当前校园身份绑定的版本号，随行落盘 |
+| `data` | `Map<String, CampusDataset>` | 四个白名单数据集，必须齐全且各自合法 |
+| `committedAt` | `DateTime?`，命名可选 | 覆盖提交时间（转 UTC 落盘），缺省取 `now()` |
+| `expectedGeneration` | `int?`，命名可选 | 外部捕获的代际；传入后用它代替当前代际做围栏 |
+
+写入流程：校验通过后在事务内 `INSERT OR REPLACE` 并淘汰超出 `maxScopes` 的旧行，事务后触发 `maintainBudget`，事务前后各复查一次代际与类别可用性。返回写好的 `CampusSnapshot`。
+
+| 异常 | 抛出条件 |
 | --- | --- |
-| `read(scope, [bindingRevision])` | 读取一个作用域并做完整校验（schema 版本、大小、时效、数据集键与状态）；无行或校验失败返回 null，失败时顺带删除该行。传入 `bindingRevision` 时只认匹配版本的行 |
-| `write(scope, bindingRevision, data, {committedAt, expectedGeneration})` | 校验四个白名单数据集齐全、键名一致且状态为 ready 或 empty 后，事务内写入并淘汰超出 `maxScopes` 的旧行，随后触发 `maintainBudget`；代际不匹配或 campus 被挂起时抛 `CampusSnapshotSuperseded`。返回写好的 `CampusSnapshot` |
-| `clearScope(scope)` | 删除单个作用域的全部行，并递增代际 |
-| `clear()` | 清空整张表并递增代际；登出、401 会话失效时的清理走这里 |
-| `invalidate()` | 只递增代际，让串行队列里尚未执行的旧读写作废 |
+| `ArgumentError` | `bindingRevision` 为空，或 `data` 缺少白名单键、键名与数据集不符、状态不是 ready 或 empty |
+| `StateError` | 序列化后的 payload 超过 `maxBytes` |
+| `CampusSnapshotSuperseded` | 代际不匹配（缓存 epoch 已变化）或 campus 类别被挂起，事务前后都可能抛出 |
+
+#### clearScope
+
+```dart
+Future<void> clearScope(CampusCacheScope scope)
+```
+
+删除单个作用域的全部行，并递增代际作废队列中的旧读写。校园页在绑定版本变化、授权失效或解绑时用它清掉当前作用域，可附带小组件的终态标识（`needsData` / `unbound` / `authorizationRequired` 等）。
+
+#### clear
+
+```dart
+Future<void> clear()
+```
+
+清空整张 `campus_snapshots` 表并递增代际。由 campus 类别的 `CacheOwner` 在用户清除校园缓存时调用，同一流程会连带清空小组件共享存储。
+
+#### invalidate
+
+```dart
+void invalidate()
+```
+
+只递增代际，不碰数据。队列里尚未执行的旧读写会因代际不匹配而作废。
 
 ### 相关类型
 
