@@ -6,7 +6,7 @@
 
 需要：
 
-- Go 1.26.6+。
+- Go 1.26.9+。
 - Node.js 24。
 - pnpm 11。
 - Docker + Compose。

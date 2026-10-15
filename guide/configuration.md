@@ -93,7 +93,7 @@ masterkey = "<secret>"
 
 ## OAuth 和 OIDC
 
-GitHub 和 Google 分别使用 `[github]`、`[google]`。
+GitHub、Google 和 Apple 分别使用 `[github]`、`[google]`、`[apple]`。
 
 内建 OIDC Provider 使用 `[oidc]`。生产环境需要固定 issuer，并为客户端登记精确 redirect URI；public client 使用 PKCE。
 

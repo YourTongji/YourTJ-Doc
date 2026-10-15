@@ -94,7 +94,7 @@ melos run test
 make test
 ```
 
-它会运行后端 vet / test、contract check 和 Web typecheck / test。
+它会运行后端 vet / test、contract check、Web typecheck / test 和 i18n 检查（`pnpm check`）。
 
 Browser tests、Flutter 和部分部署检查有独立 workflow，不包含在这一条命令里。
 
