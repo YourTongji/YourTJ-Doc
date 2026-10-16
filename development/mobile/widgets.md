@@ -1,6 +1,6 @@
 # 桌面小组件
 
-移动端在 Android（Glance）和 iOS（WidgetKit）上提供桌面课表小组件。小组件不联网，渲染所需的数据全部来自 App 提前写入 App Group 共享存储的本地投影。投影派生自校园快照，快照的结构与淘汰规则见[持久化存储](/development/mobile/persistence)。
+移动端在 Android（Glance）和 iOS（WidgetKit）上提供桌面课表小组件。小组件不联网，渲染所需的数据全部来自 App 提前写入共享存储的本地投影。投影派生自校园快照，快照的结构与淘汰规则见[持久化存储](/development/mobile/persistence)。
 
 下文 `lib/` 开头的路径都相对 `apps/mobile/packages/forum_app/`；各层的完整路径见文末表格。
 
@@ -12,7 +12,7 @@
 | 今日课表（TodaySchedule） | 有，中尺寸今日 + 大尺寸今日/明天双列 | 有，systemMedium / systemLarge；中尺寸在今日课程不多时并排显示明天 |
 | 课程时间线（CourseTimeline） | 有，可纵向 resize，带"今天/明天"切换按钮 | 无 |
 
-Android 三个组件是 `GlanceAppWidget`，由 `NextClassWidgetReceiver` / `TodayScheduleWidgetReceiver` / `CourseTimelineWidgetReceiver` 三个 receiver 托管，均继承 vendored home_widget 插件的 `HomeWidgetGlanceWidgetReceiver`。iOS 只有一个 WidgetBundle，内含 `NextClassWidget` 和 `TodayScheduleWidget` 两个 `StaticConfiguration`。
+Android 三个组件是 [GlanceAppWidget](https://developer.android.com/develop/ui/compose/glance)，由 `NextClassWidgetReceiver` / `TodayScheduleWidgetReceiver` / `CourseTimelineWidgetReceiver` 三个 receiver 托管，均继承 vendored home_widget 插件的 `HomeWidgetGlanceWidgetReceiver`。iOS 只有一个 [WidgetBundle](https://developer.apple.com/documentation/widgetkit/widgetbundle)，内含 `NextClassWidget` 和 `TodayScheduleWidget` 两个 [StaticConfiguration](https://developer.apple.com/documentation/widgetkit/staticconfiguration)。
 
 两端的渲染行为有几处刻意不同：
 
@@ -26,7 +26,7 @@ Android 三个组件是 `GlanceAppWidget`，由 `NextClassWidgetReceiver` / `Tod
 ```mermaid
 flowchart LR
   A["校园页快照<br/>campus_snapshot_store"] --> B["ScheduleWidgetProjection<br/>schema 2"]
-  B --> C["App Group 共享存储"]
+  B --> C["共享存储"]
   C --> D["Android Glance"]
   C --> E["iOS WidgetKit"]
 ```
@@ -34,7 +34,7 @@ flowchart LR
 - **快照来源**：校园页把 profile / calendar / timetable / today 四类数据以单行原子快照写入 `CampusSnapshotStore`（`lib/src/offline/campus_snapshot_store.dart`）。小组件只消费这份快照的投影，不发起新的学校请求，也不读取排课器 store——小组件上永远是官方课表，不包含用户自建的排课方案。
 - **投影生成**：`ScheduleWidgetProjection.fromSnapshot`（`lib/src/campus_widget/schedule_widget_projection.dart`）把快照整理成 schema 2 投影：当日保留服务端权威结果，校历规则可靠时再推算未来七天；时区固定 `Asia/Shanghai`。
 - **唯一写入触发点**：`_commitPersistent`（`lib/src/pages/campus/campus_state.dart`）。校园页刷新完成、四个白名单数据集齐全时，先把快照落盘，再拉取校历规则，最后经 `ScheduleWidgetBridge` 写入共享存储。两处失败都有容忍：校历规则拉取失败时保留权威快照、未来天按 unknown 发布；桥写入失败时异常被吞掉，快照本身仍可读。
-- **共享存储**：App Group `group.tj.yourtj.forumApp.widgets`（键 `schedule_widget_projection`），是 Flutter 与原生代码之间唯一的交换通道。原生两端解析失败一律按无投影处理。
+- **共享存储**：App Group `group.tj.yourtj.forumApp.widgets`（键 `schedule_widget_projection`），是 Flutter 与原生代码之间唯一的交换通道。该标识符仅 iOS 生效，即 [App Groups](https://developer.apple.com/documentation/xcode/configuring-app-groups) 共享容器；Android 侧插件忽略它，数据落在插件固定的 SharedPreferences 文件里。原生两端解析失败一律按无投影处理。
 
 **调度分工**（写入完成后由谁、在什么时刻唤醒组件）：
 
@@ -85,7 +85,7 @@ Android manifest 注册了 `HomeWidgetScheduledUpdateReceiver` 并监听 `BOOT_C
 - **两段式落盘**：先写临时键 `schedule_widget_projection_pending`，读回并完整反序列化校验后才提升为正式键、清掉临时键，同时把 `empty_state` 置为 `ready`；写一半被杀进程不会留下半份数据。读到 `ready` 但无投影时两端都按"需要更新课表"渲染。
 - **代际隔离**：桥内 `generation` 计数器在 `clear` 或缓存 epoch 变化时递增；`write` 入队记下代际，执行时与最新代际比对，作废旧账号排队中的写入。
 
-背景透明度也在 App 内设置，范围 0–15%（默认 9%），存同一个 App Group（键 `schedule_widget_transparency_percent`），写入后触发组件刷新。
+背景透明度也在 App 内设置，范围 0–15%（默认 9%），写入同一共享存储（键 `schedule_widget_transparency_percent`），写入后触发组件刷新。
 
 ## 深链契约
 
@@ -95,7 +95,7 @@ Android manifest 注册了 `HomeWidgetScheduledUpdateReceiver` 并监听 `BOOT_C
 - **转发方**：iOS vendored home_widget 插件的 scene 回调只转发带 `homeWidget` 查询参数的链接，其余深链不走小组件通道。Android 插件以 launch action 识别组件点击。
 - **消费方**：`scheduleWidgetLinkProvider`（`lib/src/providers.dart`）把链接流交给 `lib/src/app.dart`，只校验 `scheme == yourtj` 且 `host == campus`，然后 `go('/campus')`。
 
-点击是**组件级**行为：Android 课程列表区域内的触摸被 `LazyColumn` 消费，不触发跳转；只有标题等非列表区域响应点击。若未来需要"点课程聚焦"，正确入口是给 `LazyColumn` 的 item 各自加 `clickable` 并在 URI 上重新引入课程标识参数——不要把列表区域的静默当作 bug 修掉。
+点击是**组件级**行为：Android 课程列表区域内的触摸被 [LazyColumn](https://developer.android.com/reference/kotlin/androidx/glance/appwidget/lazy/LazyColumn) 消费，不触发跳转；只有标题等非列表区域响应点击。若未来需要"点课程聚焦"，正确入口是给 `LazyColumn` 的 item 各自加 `clickable` 并在 URI 上重新引入课程标识参数——不要把列表区域的静默当作 bug 修掉。
 
 ## 守护测试
 
