@@ -19,6 +19,7 @@ Android 三个组件是 `GlanceAppWidget`，由 `NextClassWidgetReceiver` / `Tod
 - **已结束课程**：iOS 在展示层过滤——`Day.remaining(at:)` 只保留 `endAt > now` 的课程，已结束课程自动从列表消失；但状态计算走未过滤的完整天，以此区分"今日课程已结束"（finished）和"今天没课"（noClasses）。Android 不过滤全天列表，而是用 `current` 标记高亮正在进行的课程。
 - **明天切换**：仅 Android 的 CourseTimeline 有逐组件的"今天/明天"切换（按 appWidgetId 存偏好，删除组件时清理）。iOS 的明天内容只在今日课表组件内附带展示。
 - **刷新驱动**：iOS 完全由 WidgetKit 时间线驱动；Android 依赖 Flutter 与 receiver 双方排的闹钟，见下节。
+- **可点击区域**：点击跳回 App 是组件级行为。iOS 整个组件可点；Android 只有标题等非列表区域可点——课程列表（Glance `LazyColumn`，底层 ListView）会消费触摸事件，课程项点击无行为。这是刻意的产品决策，深链契约见下文。
 
 ## 数据流
 
@@ -90,9 +91,11 @@ Android manifest 注册了 `HomeWidgetScheduledUpdateReceiver` 并监听 `BOOT_C
 
 组件点击经深链回 App：
 
-- **构造方**：Android 在组件表面点击时以 `HOME_WIDGET_LAUNCH_ACTION` 启动 `ThemeRouterActivity`，URI 为 `yourtj://campus/today?focus=<stableId>`（仅 NextClass 带 `focus`，为当前课程 stableId；Android 的 URI 一律不带 `homeWidget` 查询参数）。iOS 两端 `widgetURL` 分别为 `yourtj://campus/today?focus=<stableId>&homeWidget=true`（NextClass）和 `yourtj://campus/today?homeWidget=true`（TodaySchedule）。
+- **构造方**：Android 在组件表面点击时以 `HOME_WIDGET_LAUNCH_ACTION` 启动 `ThemeRouterActivity`，URI 为 `yourtj://campus/today`（不带任何查询参数）。iOS 两个组件的 `widgetURL` 均为 `yourtj://campus/today?homeWidget=true`。
 - **转发方**：iOS vendored home_widget 插件的 scene 回调只转发带 `homeWidget` 查询参数的链接，其余深链不走小组件通道。Android 插件以 launch action 识别组件点击。
-- **消费方**：`scheduleWidgetLinkProvider`（`lib/src/providers.dart`）把链接流交给 `lib/src/app.dart`，目前只校验 `scheme == yourtj` 且 `host == campus`，然后 `go('/campus')`；`focus` 参数当前未被消费，仅作为协议预留。
+- **消费方**：`scheduleWidgetLinkProvider`（`lib/src/providers.dart`）把链接流交给 `lib/src/app.dart`，只校验 `scheme == yourtj` 且 `host == campus`，然后 `go('/campus')`。
+
+点击是**组件级**行为：Android 课程列表区域内的触摸被 `LazyColumn` 消费，不触发跳转；只有标题等非列表区域响应点击。若未来需要"点课程聚焦"，正确入口是给 `LazyColumn` 的 item 各自加 `clickable` 并在 URI 上重新引入课程标识参数——不要把列表区域的静默当作 bug 修掉。
 
 ## 守护测试
 
