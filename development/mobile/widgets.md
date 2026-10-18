@@ -12,7 +12,7 @@
 | 今日课表（TodaySchedule） | 有，中尺寸今日 + 大尺寸今日/明天双列 | 有，systemMedium / systemLarge；中尺寸在今日课程不多时并排显示明天 |
 | 课程时间线（CourseTimeline） | 有，可纵向 resize，带"今天/明天"切换按钮 | 无 |
 
-Android 三个组件是 [GlanceAppWidget](https://developer.android.com/develop/ui/compose/glance)，由 `NextClassWidgetReceiver` / `TodayScheduleWidgetReceiver` / `CourseTimelineWidgetReceiver` 三个 receiver 托管，均继承 vendored home_widget 插件的 `HomeWidgetGlanceWidgetReceiver`。iOS 只有一个 [WidgetBundle](https://developer.apple.com/documentation/widgetkit/widgetbundle)，内含 `NextClassWidget` 和 `TodayScheduleWidget` 两个 [StaticConfiguration](https://developer.apple.com/documentation/widgetkit/staticconfiguration)。
+Android 三个组件是 [GlanceAppWidget](https://developer.android.com/develop/ui/compose/glance)，由 [`NextClassWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/NextClassWidget.kt) / [`TodayScheduleWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/TodayScheduleWidget.kt) / [`CourseTimelineWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/CourseTimelineWidget.kt) 三个 receiver 托管，均继承 vendored home_widget 插件的 `HomeWidgetGlanceWidgetReceiver`。iOS 只有一个 [WidgetBundle](https://developer.apple.com/documentation/widgetkit/widgetbundle)，内含 `NextClassWidget` 和 `TodayScheduleWidget` 两个 [StaticConfiguration](https://developer.apple.com/documentation/widgetkit/staticconfiguration)。
 
 两端的渲染行为有几处刻意不同：
 
@@ -108,14 +108,18 @@ Android manifest 注册了 `HomeWidgetScheduledUpdateReceiver` 并监听 `BOOT_C
 
 | 层 | 位置 |
 | --- | --- |
-| Flutter 桥接 | `apps/mobile/packages/forum_app/lib/src/campus_widget/schedule_widget_bridge.dart` |
-| 投影模型 | `apps/mobile/packages/forum_app/lib/src/campus_widget/schedule_widget_projection.dart` |
-| 写入触发 | `apps/mobile/packages/forum_app/lib/src/pages/campus/campus_state.dart` |
-| 深链消费 | `apps/mobile/packages/forum_app/lib/src/app.dart`、`lib/src/providers.dart` |
-| Android Glance | `apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt` |
-| Android 解析 | `apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetData.kt` |
-| iOS WidgetKit | `apps/mobile/packages/forum_app/ios/ScheduleWidgets/ScheduleWidgets.swift` |
-| iOS 解析 | `apps/mobile/packages/forum_app/ios/ScheduleWidgets/ScheduleProjection.swift` |
-| home_widget 插件 | `apps/mobile/third_party/home_widget/`（仓库内 vendor，非 pub 依赖） |
-| Dart 逻辑测试 | `apps/mobile/packages/forum_app/test/campus_widget_test.dart` |
-| 原生契约测试 | `apps/mobile/packages/forum_app/test/native_widget_structure_test.dart` |
+| Flutter 桥接 | [schedule_widget_bridge.dart](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/lib/src/campus_widget/schedule_widget_bridge.dart) |
+| 投影模型 | [schedule_widget_projection.dart](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/lib/src/campus_widget/schedule_widget_projection.dart) |
+| 写入触发 | [campus_state.dart](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/lib/src/pages/campus/campus_state.dart) |
+| 深链消费 | [app.dart](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/lib/src/app.dart)、[providers.dart](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/lib/src/providers.dart) |
+| Android 基类与组件表面 | [ScheduleGlanceWidget.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleGlanceWidget.kt) |
+| Android 共享 UI | [ScheduleWidgetCommon.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetCommon.kt) |
+| Android 下一节课 | [NextClassWidget.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/NextClassWidget.kt)（含 receiver） |
+| Android 今日课表 | [TodayScheduleWidget.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/TodayScheduleWidget.kt)（含 receiver） |
+| Android 课程时间线 | [CourseTimelineWidget.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/CourseTimelineWidget.kt)（含 receiver 与日期切换 action） |
+| Android 解析 | [ScheduleWidgetData.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetData.kt) |
+| iOS WidgetKit | [ScheduleWidgets.swift](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/ios/ScheduleWidgets/ScheduleWidgets.swift) |
+| iOS 解析 | [ScheduleProjection.swift](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/ios/ScheduleWidgets/ScheduleProjection.swift) |
+| home_widget 插件 | [third_party/home_widget/](https://github.com/YourTongji/YourTJ-Hub/tree/dev/apps/mobile/third_party/home_widget/)（仓库内 vendor，非 pub 依赖） |
+| Dart 逻辑测试 | [campus_widget_test.dart](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/test/campus_widget_test.dart) |
+| 原生契约测试 | [native_widget_structure_test.dart](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/test/native_widget_structure_test.dart) |
