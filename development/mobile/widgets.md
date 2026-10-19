@@ -21,6 +21,58 @@ Android 三个组件是 [GlanceAppWidget](https://developer.android.com/develop/
 - **刷新驱动**：iOS 完全由 WidgetKit 时间线驱动；Android 依赖 Flutter 与 receiver 双方排的闹钟，见下节。
 - **可点击区域**：iOS 整个组件可点；Android 只有标题等非列表区域可点，课程项点击无行为（刻意决策，机制见下文「深链契约」）。
 
+## Android Receiver 详解
+
+Receiver 是 Android 小组件的生命周期入口：组件的放置、更新、删除由系统以广播形式通知到它。它不渲染 UI（渲染是 `GlanceAppWidget` 的事），职责是"什么时候该更新、更新前做什么准备"。自排调度统一建立在插件的 [HomeWidgetScheduler](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/third_party/home_widget/android/src/main/kotlin/es/antonborri/home_widget/HomeWidgetScheduler.kt) 之上：按 receiver 类名存一份待触发时刻表，到期发广播触发 `onUpdate`。
+
+系统按组件实例的生命周期调用四个钩子：
+
+| 钩子 | 触发时机 |
+| --- | --- |
+| `onEnabled` | 该组件类型第一次在桌面被放置 |
+| `onUpdate` | 需要刷新：首次放置后、闹钟到点、重启恢复 |
+| `onDeleted` | 删除了一个实例（参数带被删实例的 appWidgetId） |
+| `onDisabled` | 最后一个实例被移除，组件彻底退出桌面 |
+
+```mermaid
+sequenceDiagram
+  participant S as Android 系统
+  participant R as Receiver
+  participant W as GlanceAppWidget
+  S->>R: onEnabled（首次放置）
+  R->>W: 触发渲染
+  S->>R: onUpdate（闹钟到期 / 重启）
+  R->>W: 触发重渲染
+  S->>R: onDeleted（删除一个实例）
+  S->>R: onDisabled（最后一个移除）
+  R->>R: 取消调度
+```
+
+### NextClassWidgetReceiver
+
+代码在 [NextClassWidget.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/NextClassWidget.kt) 末尾。三个 receiver 里唯一自己精算刷新时刻的：
+
+- `onEnabled` 与 `onUpdate` 都调 `scheduleNextUpdate`：读共享存储里的投影，经 `nextUpdateAt(now)` 从四类候选时刻中取最近的一个——倒计时文案的下次翻页（5 分钟取整边界，剩余超过 24 小时后改为小时粒度）、八天窗口内下一门课程的起止、下一上海午夜、`generatedAt + 7 天` 的投影过期点。
+- 取到的时刻交给 `HomeWidgetScheduler.schedule` 排一个闹钟，到期触发 `onUpdate` 重渲染。
+- 为什么这层自排必要：倒计时翻页点依赖渲染侧状态机的结果，Flutter 的 `updateTimesAfter` 算不出来（它只排课程起止、午夜、过期点）。分工是 Flutter 排粗粒度时刻，receiver 补细粒度翻页。
+- 投影不存在时直接不排（无时刻可算），组件渲染空态即可。
+
+### TodayScheduleWidgetReceiver
+
+代码在 [TodayScheduleWidget.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/TodayScheduleWidget.kt) 末尾。纯宿主：除 `override val glanceAppWidget` 外没有任何 override，生命周期全走基类默认实现。它的更新完全来自 Flutter——`updateTimesAfter` 排的课程起止、午夜、过期点已覆盖"今日课表"需要的全部刷新时机，没有需要原生侧补算的细粒度时刻。这个 receiver 说明自排不是必须的：只有渲染内容依赖 Flutter 算不出的时刻时才需要。
+
+### CourseTimelineWidgetReceiver
+
+代码在 [CourseTimelineWidget.kt](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/CourseTimelineWidget.kt) 末尾。生命周期钩子覆盖最全的一个：
+
+- `onEnabled` / `onUpdate` → `scheduleNextDay`：只排下一上海午夜，到点"今天"翻成"明天"。
+- `onDeleted`：清理被删实例的"显示明天"偏好（按 appWidgetId 存取），组件删了偏好不残留。
+- `onDisabled`：`HomeWidgetScheduler.cancel` 取消调度，最后一个组件移除后不再空转。
+
+同一文件里的切换按钮走 [ActionCallback](https://developer.android.com/reference/kotlin/androidx/glance/appwidget/action/ActionCallback)（`ToggleCourseTimelineDayAction`），链路是：点击 → 把 `glanceId` 换成 `appWidgetId` → 翻转该实例的偏好 → `updateAppWidgetState` 同步插件状态 → `widget.update` 立即重渲染。
+
+iOS 侧没有 receiver 概念：WidgetKit 由系统统一调度，组件无需关心生命周期钩子。
+
 ## 数据流
 
 ```mermaid
@@ -39,8 +91,7 @@ flowchart LR
 **调度分工**（写入完成后由谁、在什么时刻唤醒组件）：
 
 - Flutter 侧 `updateTimesAfter` 算出候选时刻：八天窗口内全部课程的起止时间、每个自然日的 00:00（上海）、`generatedAt + 7 天`，去重、丢弃已过去的时刻后排序。这组时刻只排给 NextClass 和 TodaySchedule 两个 receiver。
-- Android NextClass receiver 在 `onEnabled` / `onUpdate` 时自排一次：取倒计时下一次跨档时刻（5 分钟取整边界，超过 24 小时后改为小时粒度）、下一门课程起止、下一上海午夜、`generatedAt + 7 天` 中最近的一个。
-- Android CourseTimeline receiver 只排下一上海午夜，用于"今天"翻页；最后一个组件移除（`onDisabled`）时取消调度。
+- Android 两个 receiver 还有一层自排：NextClass 补倒计时翻页点，CourseTimeline 排午夜翻页并在最后一个组件移除时取消调度。逐钩子的细节见上方「Android Receiver 详解」。
 - iOS 不设闹钟：WidgetKit `getTimeline` 用 `timelineDates(after:)` 生成与 `updateTimesAfter` 同构的时间线条目（课程起止、每日零点、过期点），渲染到条目时刻自动切换。
 
 Android manifest 注册了 `HomeWidgetScheduledUpdateReceiver` 并监听 `BOOT_COMPLETED`，重启后闹钟恢复；未申请 `SCHEDULE_EXACT_ALARM`。
