@@ -220,7 +220,7 @@ class CampusSnapshot {
 
 两条隐私边界值得单说。`binding_revision` 是服务端 `/api/campus` 返回的校园身份绑定版本号，复用快照前必须与当前绑定版本一致，重新绑定或换绑学号后旧快照整体作废，防止上一份课表和资料串给新绑定。payload 里的 `messages` 恒为空数组——消息摘要和正文刻意不序列化，凭据和非白名单数据集进不了这个 store。
 
-桌面小组件消费的课表投影就派生自这份快照，细节见[桌面小组件](/development/mobile/widgets)。
+桌面小组件消费的课表投影就派生自这份快照，细节见[桌面小组件](/development/mobile/widgets/)。
 
 ## 本机写作
 

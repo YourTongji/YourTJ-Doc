@@ -113,7 +113,14 @@ export default withMermaid(
               items: [
                 { text: '概览', link: '/development/mobile/' },
                 { text: '持久化存储', link: '/development/mobile/persistence' },
-                { text: '桌面小组件', link: '/development/mobile/widgets' }
+                {
+                  text: '桌面小组件',
+                  collapsed: true,
+                  items: [
+                    { text: '概览', link: '/development/mobile/widgets/' },
+                    { text: 'Android Receiver 详解', link: '/development/mobile/widgets/receivers' }
+                  ]
+                }
               ]
             },
             { text: 'Agents 与 MCP', link: '/development/agents-mcp' },
