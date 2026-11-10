@@ -1,8 +1,8 @@
 # Android Receiver 详解
 
-桌面小组件三个组件的 receiver 逐一说明。背景（数据从哪来、谁负责渲染）见[概览](/development/mobile/widgets/)。
-
 Receiver 是 Android 小组件的生命周期入口：组件的放置、更新、删除由系统以广播形式通知到它。它不渲染 UI（渲染是 `GlanceAppWidget` 的事），职责是"什么时候该更新、更新前做什么准备"。自排调度统一建立在插件的 [HomeWidgetScheduler](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/third_party/home_widget/android/src/main/kotlin/es/antonborri/home_widget/HomeWidgetScheduler.kt) 之上：按 receiver 类名存一份待触发时刻表，到期发广播触发 `onUpdate`。
+
+数据从哪来、谁负责渲染见[概览](/development/mobile/widgets/)。
 
 系统按组件实例的生命周期调用四个钩子：
 
