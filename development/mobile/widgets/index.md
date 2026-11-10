@@ -100,8 +100,8 @@ Android manifest 注册了 `HomeWidgetScheduledUpdateReceiver` 并监听 `BOOT_C
 
 小组件契约由两层测试守护，改动任一层都会先于真机暴露问题：
 
-- `test/campus_widget_test.dart`：Dart 逻辑单测（9 组），用内存数据库与假仓库跑真实代码。覆盖：快照的原子写入、作用域隔离、损坏 schema 丢弃；投影最小化（编码结果不含姓名、token、cookie、学号、邮箱、成绩、消息）与状态机（upcoming / inClass / break / finished / noClasses / holiday / needsRefresh / stale）；八天窗口内服务端今日权威、未来天本地推算、节假日与调课规则；11 / 12 节时间回退；schema 1 读路径与可选文本清洗；网络失败时保留最后一份快照与投影；绑定版本变化时清掉旧快照与小组件；校历规则失败仍发布 unknown 未来天。
-- `test/native_widget_structure_test.dart`：原生结构与数值契约断言（17 组），直接读源文件与工程文件做字符串/正则断言。覆盖：Glance 组件纯本地渲染（无 `java.net` / `OkHttp`，iOS 无 `URLSession`）与无障碍语义；manifest 的 receiver 注册、`BOOT_COMPLETED`、不申请 `SCHEDULE_EXACT_ALARM`；三个 widget 的尺寸、resize 模式与选择器预览资源；大型课表双等宽列与独立滚动结构；NextClass 尺寸分档与倒计时自排；CourseTimeline 的今天/明天切换与 receiver 接线；iOS WidgetBundle 构成、App Group 双端 entitlements、部署目标（Runner 13.0 / 扩展 14.0）；iOS 课程色与 web `tokens.css` 做数值换算比对；字号下限与截断策略；vendored home_widget 插件的 iOS 13 兼容行为（iOS 13 上 reload 为 no-op，保证登录清理能完成）；深链必须带 `homeWidget=true` 标记；debug 配置与开发 APK 的 ABI splits。
+- `test/campus_widget_test.dart`：Dart 逻辑单测（11 组），用内存数据库与假仓库跑真实代码。覆盖：快照的原子写入、作用域隔离、损坏 schema 丢弃；投影最小化（编码结果不含姓名、token、cookie、学号、邮箱、成绩、消息）与状态机（upcoming / inClass / break / finished / noClasses / holiday / needsRefresh / stale）；八天窗口内服务端今日权威、未来天本地推算、节假日与调课规则；11 / 12 节时间回退；schema 1 读路径与可选文本清洗；网络失败时保留最后一份快照与投影；绑定版本变化时清掉旧快照与小组件；校历规则失败仍发布 unknown 未来天。
+- `test/native_widget_structure_test.dart`：原生结构与数值契约断言（19 组），直接读源文件与工程文件做字符串/正则断言。覆盖：Glance 组件纯本地渲染（无 `java.net` / `OkHttp`，iOS 无 `URLSession`）与无障碍语义；manifest 的 receiver 注册、`BOOT_COMPLETED`、不申请 `SCHEDULE_EXACT_ALARM`；三个 widget 的尺寸、resize 模式与选择器预览资源；大型课表双等宽列与独立滚动结构；NextClass 尺寸分档与倒计时自排；CourseTimeline 的今天/明天切换与 receiver 接线；iOS WidgetBundle 构成、App Group 双端 entitlements、部署目标（Runner 13.0 / 扩展 14.0）；iOS 课程色与 web `tokens.css` 做数值换算比对；字号下限与截断策略；vendored home_widget 插件的 iOS 13 兼容行为（iOS 13 上 reload 为 no-op，保证登录清理能完成）；深链必须带 `homeWidget=true` 标记；debug 配置与开发 APK 的 ABI splits。
 
 ## 各层位置
 

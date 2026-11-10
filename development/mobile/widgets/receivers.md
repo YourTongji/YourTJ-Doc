@@ -10,7 +10,7 @@ Receiver 是 Android 小组件的生命周期入口：组件的放置、更新�
 | --- | --- |
 | `onEnabled` | 该组件类型第一次在桌面被放置 |
 | `onUpdate` | 需要刷新：首次放置后、闹钟到点、重启恢复 |
-| `onDeleted` | 删除了一个实例（参数带被删实例的 appWidgetId） |
+| `onDeleted` | 删除了一个或多个实例（参数带被删实例的 appWidgetId 数组） |
 | `onDisabled` | 最后一个实例被移除，组件彻底退出桌面 |
 
 ```mermaid
@@ -22,9 +22,9 @@ sequenceDiagram
   R->>W: 触发渲染
   S->>R: onUpdate（闹钟到期 / 重启）
   R->>W: 触发重渲染
-  S->>R: onDeleted（删除一个实例）
+  S->>R: onDeleted（删除若干实例）
   S->>R: onDisabled（最后一个移除）
-  R->>R: 取消调度
+  R->>R: 取消调度（仅 CourseTimeline 覆盖）
 ```
 
 ## NextClassWidgetReceiver
