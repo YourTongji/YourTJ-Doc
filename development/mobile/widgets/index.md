@@ -12,7 +12,7 @@
 | 今日课表（TodaySchedule） | 有，中尺寸今日 + 大尺寸今日/明天双列 | 有，systemMedium / systemLarge；中尺寸在今日课程不多时并排显示明天 |
 | 课程时间线（CourseTimeline） | 有，可纵向 resize，带"今天/明天"切换按钮 | 无 |
 
-Android 三个组件是 [GlanceAppWidget](https://developer.android.com/develop/ui/compose/glance)，由 [`NextClassWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/NextClassWidget.kt) / [`TodayScheduleWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/TodayScheduleWidget.kt) / [`CourseTimelineWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/CourseTimelineWidget.kt) 三个 receiver 托管，均继承 vendored home_widget 插件的 `HomeWidgetGlanceWidgetReceiver`。iOS 只有一个 [WidgetBundle](https://developer.apple.com/documentation/widgetkit/widgetbundle)，内含 `NextClassWidget` 和 `TodayScheduleWidget` 两个 [StaticConfiguration](https://developer.apple.com/documentation/widgetkit/staticconfiguration)。
+Android 三个组件是 [GlanceAppWidget](https://developer.android.com/develop/ui/compose/glance)，由 [`NextClassWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/NextClassWidget.kt) / [`TodayScheduleWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/TodayScheduleWidget.kt) / [`CourseTimelineWidgetReceiver`](https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/mobile/packages/forum_app/android/app/src/main/kotlin/tj/yourtj/forum_app/widget/CourseTimelineWidget.kt) 三个 receiver 托管，均继承 vendored home_widget 插件的 `HomeWidgetGlanceWidgetReceiver`；三个 receiver 的生命周期钩子与自排调度逻辑见 [Android Receiver 详解](/development/mobile/widgets/receivers)。iOS 只有一个 [WidgetBundle](https://developer.apple.com/documentation/widgetkit/widgetbundle)，内含 `NextClassWidget` 和 `TodayScheduleWidget` 两个 [StaticConfiguration](https://developer.apple.com/documentation/widgetkit/staticconfiguration)。
 
 两端的渲染行为有几处刻意不同：
 
@@ -39,8 +39,7 @@ flowchart LR
 **调度分工**（写入完成后由谁、在什么时刻唤醒组件）：
 
 - Flutter 侧 `updateTimesAfter` 算出候选时刻：八天窗口内全部课程的起止时间、每个自然日的 00:00（上海）、`generatedAt + 7 天`，去重、丢弃已过去的时刻后排序。这组时刻只排给 NextClass 和 TodaySchedule 两个 receiver。
-- Android NextClass receiver 在 `onEnabled` / `onUpdate` 时自排一次：取倒计时下一次跨档时刻（5 分钟取整边界，超过 24 小时后改为小时粒度）、下一门课程起止、下一上海午夜、`generatedAt + 7 天` 中最近的一个。
-- Android CourseTimeline receiver 只排下一上海午夜，用于"今天"翻页；最后一个组件移除（`onDisabled`）时取消调度。
+- Android 两个 receiver 还有一层自排：NextClass 补倒计时翻页点，CourseTimeline 排午夜翻页并在最后一个组件移除时取消调度。逐钩子的细节见 [Android Receiver 详解](/development/mobile/widgets/receivers)。
 - iOS 不设闹钟：WidgetKit `getTimeline` 用 `timelineDates(after:)` 生成与 `updateTimesAfter` 同构的时间线条目（课程起止、每日零点、过期点），渲染到条目时刻自动切换。
 
 Android manifest 注册了 `HomeWidgetScheduledUpdateReceiver` 并监听 `BOOT_COMPLETED`，重启后闹钟恢复；未申请 `SCHEDULE_EXACT_ALARM`。
@@ -101,8 +100,8 @@ Android manifest 注册了 `HomeWidgetScheduledUpdateReceiver` 并监听 `BOOT_C
 
 小组件契约由两层测试守护，改动任一层都会先于真机暴露问题：
 
-- `test/campus_widget_test.dart`：Dart 逻辑单测（9 组），用内存数据库与假仓库跑真实代码。覆盖：快照的原子写入、作用域隔离、损坏 schema 丢弃；投影最小化（编码结果不含姓名、token、cookie、学号、邮箱、成绩、消息）与状态机（upcoming / inClass / break / finished / noClasses / holiday / needsRefresh / stale）；八天窗口内服务端今日权威、未来天本地推算、节假日与调课规则；11 / 12 节时间回退；schema 1 读路径与可选文本清洗；网络失败时保留最后一份快照与投影；绑定版本变化时清掉旧快照与小组件；校历规则失败仍发布 unknown 未来天。
-- `test/native_widget_structure_test.dart`：原生结构与数值契约断言（17 组），直接读源文件与工程文件做字符串/正则断言。覆盖：Glance 组件纯本地渲染（无 `java.net` / `OkHttp`，iOS 无 `URLSession`）与无障碍语义；manifest 的 receiver 注册、`BOOT_COMPLETED`、不申请 `SCHEDULE_EXACT_ALARM`；三个 widget 的尺寸、resize 模式与选择器预览资源；大型课表双等宽列与独立滚动结构；NextClass 尺寸分档与倒计时自排；CourseTimeline 的今天/明天切换与 receiver 接线；iOS WidgetBundle 构成、App Group 双端 entitlements、部署目标（Runner 13.0 / 扩展 14.0）；iOS 课程色与 web `tokens.css` 做数值换算比对；字号下限与截断策略；vendored home_widget 插件的 iOS 13 兼容行为（iOS 13 上 reload 为 no-op，保证登录清理能完成）；深链必须带 `homeWidget=true` 标记；debug 配置与开发 APK 的 ABI splits。
+- `test/campus_widget_test.dart`：Dart 逻辑单测（11 组），用内存数据库与假仓库跑真实代码。覆盖：快照的原子写入、作用域隔离、损坏 schema 丢弃；投影最小化（编码结果不含姓名、token、cookie、学号、邮箱、成绩、消息）与状态机（upcoming / inClass / break / finished / noClasses / holiday / needsRefresh / stale）；八天窗口内服务端今日权威、未来天本地推算、节假日与调课规则；11 / 12 节时间回退；schema 1 读路径与可选文本清洗；网络失败时保留最后一份快照与投影；绑定版本变化时清掉旧快照与小组件；校历规则失败仍发布 unknown 未来天。
+- `test/native_widget_structure_test.dart`：原生结构与数值契约断言（19 组），直接读源文件与工程文件做字符串/正则断言。覆盖：Glance 组件纯本地渲染（无 `java.net` / `OkHttp`，iOS 无 `URLSession`）与无障碍语义；manifest 的 receiver 注册、`BOOT_COMPLETED`、不申请 `SCHEDULE_EXACT_ALARM`；三个 widget 的尺寸、resize 模式与选择器预览资源；大型课表双等宽列与独立滚动结构；NextClass 尺寸分档与倒计时自排；CourseTimeline 的今天/明天切换与 receiver 接线；iOS WidgetBundle 构成、App Group 双端 entitlements、部署目标（Runner 13.0 / 扩展 14.0）；iOS 课程色与 web `tokens.css` 做数值换算比对；字号下限与截断策略；vendored home_widget 插件的 iOS 13 兼容行为（iOS 13 上 reload 为 no-op，保证登录清理能完成）；深链必须带 `homeWidget=true` 标记；debug 配置与开发 APK 的 ABI splits。
 
 ## 各层位置
 
